@@ -1,0 +1,52 @@
+/*
+ * Design tokens. Values follow the UX/UI audit (Appendix 2 and 6), pending sign-off.
+ * To fall back to the mockup's palette, change only this file (originals in comments).
+ */
+:root {
+  --ink: #0a0e13;
+  --panel: #111821;
+  --panel-2: #161f2a;
+  --panel-3: #1d2733;
+  --surface-raised: #243040; /* new: button and tab surface */
+
+  --line-subtle: #232e3c; /* new: decorative dividers only */
+  --line: #33445c; /* mockup #242F3D */
+  --line-strong: #4e6684; /* new: interactive borders, state */
+
+  --text-1: #e4eaf0; /* mockup --text #DDE4EB */
+  --text-2: #a9b7c6; /* new */
+  --text-3: #95a4b4; /* mockup --dim #78889A */
+  --text-4: #7a8a9c; /* mockup --faint #4E5D6E (2.65:1), now 5.05:1 */
+
+  --amber: #f0b75f; /* #E8A33D */
+  --amber-bg: #3a2b12;
+  --red: #ef7b73; /* #E2564D */
+  --red-bg: #3a1a18;
+  --green: #6fc79e; /* #4FB286 */
+  --green-bg: #12291f;
+  --cyan: #7fc4e0; /* #63AECD */
+  --cyan-bg: #0f2731;
+  --violet: #b8a6e4; /* #A088D8 */
+  --violet-bg: #221c36;
+
+  /* type scale: whole pixels only, 11px floor */
+  --fs-micro: 11px;
+  --fs-label: 12px;
+  --fs-body: 13px;
+  --fs-body-lg: 14px;
+  --fs-h: 16px;
+  --fs-display: 20px;
+
+  /* 4pt grid */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 8px;
+  --r-full: 999px;
+}
