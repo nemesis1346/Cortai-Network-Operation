@@ -30,11 +30,5 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
 - Alert `working` follows an open incident; it is never seeded (fixes the audit's C5 counter mismatch).
 - Queue rank is lexicographic: inside property line, then watch index, then age.
 
-## Decisions (audit approved by Yassine)
-- The audit is the spec. Where it conflicts with the brief or mockup, the audit wins.
-- Memo minimum is 40 characters (`MEMO_MIN_LENGTH`), counter shown from the start.
-- Breakpoints: drawers below 1180px, "designed for 1280px+" gate below 1024px.
-- Tokens in `tokens.css` follow the audit.
 
-## Still open (discuss with Oleg)
-- Is lane "C" a real hotkey? The mockup shows the badge but handles only A/B.
+
