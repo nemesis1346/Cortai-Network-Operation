@@ -21,8 +21,8 @@ export default function App() {
         <CriticalBand server={server} />
         <div className="body">
           {/* DOM order = tab order: centre, right rail, left rail (audit A5). CSS places them visually. */}
-          <Center />
-          <RightRail />
+          <Center server={server} />
+          <RightRail server={server} />
           <LeftRail />
         </div>
         <VoiceStrip />

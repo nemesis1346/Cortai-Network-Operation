@@ -84,3 +84,130 @@
     border: 1px solid var(--line-strong); border-radius: var(--r-2); background: var(--surface-raised); font-size: var(--fs-label); }
   .topbar-mid { gap: var(--sp-3); }
 }
+
+/* ---------- incident lanes ---------- */
+
+.lanes { flex: 1 1 auto; min-height: 0; display: grid; gap: var(--sp-3); padding: var(--sp-3); overflow: hidden; }
+.lanes.count-1 { grid-template-columns: 1fr; }
+.lanes.count-2 { grid-template-columns: 1fr 1fr; }
+.lanes.count-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(220px, 320px);
+  grid-template-areas: "focus focus" "mini1 mini2";
+}
+.lanes.count-0 { display: flex; align-items: center; justify-content: center; }
+.lanes-empty { text-align: center; color: var(--text-3); }
+.lanes-empty h3 { color: var(--text-1); font-size: var(--fs-h); font-weight: 600; margin-bottom: var(--sp-1); }
+
+/* audit A1: cap video, give the rest to the decision block */
+.lane {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-2);
+  cursor: pointer;
+}
+/* Rounding clips only the video's top corners. The card itself must not clip:
+   lane-b owns its own scroll (A1) so content in a tight mini lane is reachable,
+   not silently cut (this replaced an earlier `.lane { overflow: hidden }` that
+   hid the action row whenever content ran long — same failure mode as B18). */
+.lfeed { border-radius: var(--r-2) var(--r-2) 0 0; overflow: hidden; }
+.lane.lane-a.focus { border-color: var(--cyan); }
+.lane.lane-a .lane-key { color: var(--cyan); border-color: var(--cyan); }
+.lane.lane-b.focus { border-color: var(--violet); }
+.lane.lane-b .lane-key { color: var(--violet); border-color: var(--violet); }
+.lane.lane-c.focus { border-color: var(--line-strong); }
+.lane.lane-c .lane-key { color: var(--text-2); border-color: var(--line-strong); }
+
+.lane-h { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-subtle); flex-shrink: 0; }
+.lane-key { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border-radius: var(--r-2); border: 1px solid var(--line-strong); font: 12px/1 'JetBrains Mono', monospace; flex-shrink: 0; }
+.lane-site { flex: 1 1 auto; min-width: 12ch; font-size: var(--fs-body-lg); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane-age { flex: 0 0 auto; font-size: var(--fs-micro); color: var(--text-2); }
+.owner { flex: 0 0 auto; font-size: var(--fs-micro); padding: 2px 8px; border-radius: var(--r-full); }
+.owner.mine { color: var(--cyan); background: var(--cyan-bg); }
+.owner.auto { color: var(--text-3); background: var(--panel-3); }
+
+.lfeed { position: relative; background: #060809; flex: 0 0 auto; aspect-ratio: 16 / 9; max-height: 60%; }
+.lanes.count-2 .lfeed, .lanes.count-3 .lfeed { max-height: 46%; }
+.video-slot { position: absolute; inset: 0; display: grid; place-items: center; }
+.video-slot-fallback { width: 100%; height: 100%;
+  background: repeating-linear-gradient(135deg, #0d1218, #0d1218 10px, #10151c 10px, #10151c 20px); }
+.bbox { position: absolute; left: 30%; top: 25%; width: 34%; height: 50%; border: 2px solid var(--amber); border-radius: 2px; }
+.bbox b { position: absolute; top: -22px; left: 0; font-size: var(--fs-micro); background: rgba(6, 9, 13, .78);
+  padding: 2px 6px; border-radius: 2px; color: var(--amber); }
+.osd { position: absolute; display: flex; gap: 6px; padding: 6px; }
+.osd.tl { top: 0; left: 0; } .osd.br { bottom: 0; right: 0; }
+.tag { font-size: var(--fs-micro); background: rgba(6, 9, 13, .78); padding: 2px 6px; border-radius: var(--r-1); }
+.tag.rec { color: var(--red); }
+
+/* No hard min-height: let flex give it whatever the lane has left after the
+   video. When that's still not enough (a tight mini lane), lane-b scrolls —
+   audit A1's instruction — with a real, visible scrollbar (B18), rather than
+   a fixed floor forcing the card to overflow and get clipped by an ancestor. */
+.lane-b { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3); overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--line-subtle); }
+.lane-b::-webkit-scrollbar { width: 8px; }
+.lane-b::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+.lane-b h3 { font-size: var(--fs-h); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.chip { height: 22px; display: inline-flex; align-items: center; padding: 0 var(--sp-2); border-radius: var(--r-full);
+  background: var(--panel-3); font-size: var(--fs-label); color: var(--text-2); }
+.chip.hot { background: var(--amber-bg); color: var(--amber); }
+.chip.crit { background: var(--red-bg); color: var(--red); }
+
+.lstage { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); }
+.pips { display: flex; gap: 4px; }
+.pips i { width: 15px; height: 4px; border-radius: 2px; background: var(--line-strong); display: block; }
+.pips i.done { background: var(--green); }
+.pips i.now { background: var(--amber); }
+.pips i.now.red { background: var(--red); }
+.lstage .nx { margin-left: auto; color: var(--text-2); font-size: var(--fs-micro); }
+
+.ev { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.ev-l { font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-right: 4px; }
+.thumb { width: 64px; height: 40px; border-radius: var(--r-2); background: var(--panel-3); border: 1px solid var(--line);
+  position: relative; flex-shrink: 0; }
+.thumb.new { border-color: var(--cyan); }
+.thumb i { position: absolute; bottom: 2px; right: 4px; font-style: normal; font-size: 9px; color: var(--text-3); }
+.capturing { font-size: var(--fs-micro); color: var(--text-3); }
+.ev-n { margin-left: auto; font-size: var(--fs-micro); color: var(--text-2); }
+
+/* audit A15: Intervene vs Resolve, separated, Close not green */
+.lane-acts { display: flex; align-items: center; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-1); flex-wrap: wrap; }
+.acts-group { display: flex; gap: var(--sp-2); }
+.acts-divider { width: 1px; align-self: stretch; background: var(--line); }
+.lane-acts .btn { height: 32px; }
+.btn.ai[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); background: var(--cyan-bg); }
+.btn.crit[aria-pressed="true"] { color: var(--red); border-color: var(--red); background: var(--red-bg); }
+.btn[aria-pressed="true"]:not(.ai):not(.crit) { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
+.btn.resolve { border-color: var(--line-strong); color: var(--text-1); background: transparent; margin-left: auto; }
+
+.lane.mini .lfeed { max-height: 38%; }
+
+/* ---------- queue ---------- */
+
+.queue-region { display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.tab { flex: 1; height: 32px; font-size: var(--fs-body); color: var(--text-3); border-bottom: 2px solid transparent; }
+.tab[aria-selected="true"] { color: var(--text-1); border-bottom-color: var(--cyan); background: var(--panel-3); }
+.tab-n { font-size: var(--fs-micro); margin-left: 4px; }
+.refusal { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: var(--amber-bg); color: var(--amber); font-size: var(--fs-body); flex-shrink: 0; }
+.refusal .btn { margin-left: auto; height: 28px; flex-shrink: 0; }
+.queue-list { flex: 1; overflow-y: auto; padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); }
+.row { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-2);
+  border: 1px solid var(--line-subtle); border-left: 3px solid transparent; background: var(--panel-2); text-align: left; width: 100%; }
+.row:hover { background: var(--panel-3); }
+.row.p1 { border-left-color: var(--red); }
+.row.p2 { border-left-color: var(--amber); }
+.row.p3, .row.muted { border-left-color: var(--line); opacity: .75; }
+.row.live { border-color: var(--cyan); }
+.row-t { display: flex; align-items: baseline; gap: var(--sp-2); }
+.row-t b { flex: 1; font-size: var(--fs-body-lg); font-weight: 500; }
+.row .age { font-size: var(--fs-micro); color: var(--text-3); flex-shrink: 0; }
+.row .age.hot { color: var(--red); }
+.row p { font-size: var(--fs-body); color: var(--text-2); }
+.lanetag { align-self: flex-start; font-size: var(--fs-micro); padding: 1px 6px; border-radius: var(--r-full);
+  background: var(--cyan-bg); color: var(--cyan); }
