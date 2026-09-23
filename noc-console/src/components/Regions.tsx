@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Snapshot } from '../api/types'
+import { CameraRibbon } from './CameraRibbon'
+import { LaneActivity } from './LaneActivity'
 import { Lanes } from './Lanes'
 import { Queue } from './Queue'
 
@@ -24,14 +26,14 @@ export const LeftRail = () => (
 export const Center = ({ server }: { server: Snapshot }) => (
   <main className="col center" aria-label="Incidents">
     <Lanes server={server} />
-    <Region id="h-cams" title="Cameras" />
+    <CameraRibbon server={server} />
   </main>
 )
 
 export const RightRail = ({ server }: { server: Snapshot }) => (
   <aside className="col rail-r" aria-label="Queue and lane activity">
     <Queue server={server} />
-    <Region id="h-activity" title="Lane activity" />
+    <LaneActivity server={server} />
   </aside>
 )
 

@@ -211,3 +211,99 @@
 .row p { font-size: var(--fs-body); color: var(--text-2); }
 .lanetag { align-self: flex-start; font-size: var(--fs-micro); padding: 1px 6px; border-radius: var(--r-full);
   background: var(--cyan-bg); color: var(--cyan); }
+
+/* Right rail: queue and activity split the height evenly. Same specificity as
+   `.col > section:first-child` above, placed later, so it wins the tie for
+   queue-region and gives activity-region a flex-grow it wouldn't get otherwise. */
+.rail-r > section.queue-region, .rail-r > section.activity-region { flex: 1 1 0; min-height: 0; }
+
+/* ---------- camera ribbon ---------- */
+
+.cams-region { flex-shrink: 0; border-top: 1px solid var(--line); position: relative; }
+.cams-head { display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-3); height: 36px; }
+.cams-head .hd { border: 0; padding: 0; height: auto; flex-shrink: 0; }
+.cams-sum { color: var(--text-3); font-size: var(--fs-micro); flex: 1; }
+.wall-toggle { height: 32px; font-size: var(--fs-label); flex-shrink: 0; }
+
+.strip { display: flex; flex-wrap: wrap; gap: 2px; padding: var(--sp-1) var(--sp-3) var(--sp-2); }
+.pip { position: relative; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-1); }
+.pip i { display: block; width: 8px; height: 8px; }
+.pip.live i { border-radius: 50%; background: var(--green); }
+.pip.motion i { background: var(--amber); transform: rotate(45deg); }
+.pip.down i { border-radius: 1px; background: var(--red); }
+.pip:hover::after, .pip:focus-visible::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  background: var(--panel-3); border: 1px solid var(--line-strong); padding: 4px 8px; border-radius: var(--r-2);
+  font-size: var(--fs-micro); white-space: nowrap; z-index: 30; color: var(--text-1); pointer-events: none;
+}
+
+.faults { padding: 0 var(--sp-3) var(--sp-2); display: flex; flex-direction: column; gap: 4px; }
+.fault { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-body);
+  color: var(--red); background: var(--red-bg); padding: 4px 8px; border-radius: var(--r-2); }
+.fault .mono { color: var(--text-2); font-size: var(--fs-micro); }
+
+/* Overlay covers the centre column only, lane height never changes (audit A11). */
+.center { position: relative; }
+.wall-overlay { position: absolute; inset: 0; z-index: 40; background: var(--ink);
+  display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); }
+.wall-head { display: flex; align-items: center; gap: var(--sp-3); }
+.wall-head b { flex: 1; font-size: var(--fs-h); }
+.wall-head span { color: var(--text-2); font-size: var(--fs-body); }
+.wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-3);
+  overflow-y: auto; flex: 1; align-content: start; }
+.tile { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-2); overflow: hidden;
+  background: #060809; border: 1px solid var(--amber); }
+.tile-badge { position: absolute; top: 6px; left: 6px; font-size: var(--fs-micro); background: var(--amber-bg);
+  color: var(--amber); padding: 2px 6px; border-radius: var(--r-1); }
+.tile-l { position: absolute; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; gap: 2px;
+  padding: 6px; background: linear-gradient(transparent, rgba(6, 9, 13, .85)); font-size: var(--fs-micro); }
+
+/* ---------- lane activity ---------- */
+
+.activity-region { display: flex; flex-direction: column; }
+.activity-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+
+.act-head { font-size: var(--fs-body-lg); font-weight: 500; }
+.act-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3);
+  padding: var(--sp-3); background: var(--panel-2); border-radius: var(--r-2); flex-shrink: 0; }
+.act-times > div { display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line-subtle); padding-left: var(--sp-2); }
+.act-times > div:first-child { border-left: 0; padding-left: 0; }
+.act-times u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+.act-times b { font-size: var(--fs-body-lg); }
+
+.led-filters { display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
+.chipbtn { height: 24px; padding: 0 var(--sp-2); border-radius: var(--r-full); font-size: var(--fs-micro);
+  color: var(--text-3); background: var(--panel-2); border: 1px solid var(--line-subtle); }
+.chipbtn.on { color: var(--text-1); background: var(--panel-3); border-color: var(--line-strong); }
+
+.ledger { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 80px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--line-subtle); }
+.ledger::-webkit-scrollbar { width: 8px; }
+.ledger::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+.led { display: flex; gap: var(--sp-2); font-size: var(--fs-body); padding: 4px 2px; border-bottom: 1px solid var(--line-subtle); }
+.led .ts { color: var(--text-3); flex-shrink: 0; }
+.led i { font-style: normal; color: var(--text-2); margin-right: 6px; }
+.led.voice { color: var(--cyan); }
+
+.still-group { flex-direction: column; border-bottom: none; padding: 0; }
+.still-summary { display: flex; justify-content: space-between; width: 100%; color: var(--text-3);
+  font-size: var(--fs-body); padding: 4px 2px; border-bottom: 1px solid var(--line-subtle); }
+.led.still { padding-left: var(--sp-4); color: var(--text-3); font-size: var(--fs-micro); }
+
+.note-label { font-size: var(--fs-label); color: var(--text-2); flex-shrink: 0; }
+.note-label.lane-a { color: var(--cyan); }
+.note-label.lane-b { color: var(--violet); }
+.note-input { height: 36px; padding: 0 var(--sp-2); border-radius: var(--r-2); background: var(--panel-2);
+  border: 1px solid var(--line); color: var(--text-1); font-size: var(--fs-body); flex-shrink: 0; }
+.note-input.lane-a { border-color: var(--cyan); }
+.note-input.lane-b { border-color: var(--violet); }
+.note-input.lane-c { border-color: var(--line-strong); }
+.note-input:disabled { opacity: .5; }
+
+.tie-break { font-size: var(--fs-label); color: var(--text-3); padding-top: var(--sp-2);
+  border-top: 1px solid var(--line-subtle); flex-shrink: 0; }
+
+.shift-stats { display: flex; gap: var(--sp-4); flex-shrink: 0; }
+.shift-stats > div { display: flex; flex-direction: column; gap: 2px; }
+.shift-stats u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; }
+.shift-stats b { font-size: var(--fs-body-lg); }

@@ -1,4 +1,4 @@
-import type { Alert, Incident, LadderState, WatchScore } from '../api/types'
+import type { Alert, Incident, LadderState, LedgerKind, WatchScore } from '../api/types'
 import { LANE_LETTERS, MAX_LANES, MEMO_MIN_LENGTH, SLOT_MIN_CONFIDENCE } from './constants'
 
 /**
@@ -78,6 +78,20 @@ export function ladderLabel(l: LadderState, operatorOwned: boolean): string {
     case 'running':
       return l.stages.find((s) => s.index === l.firedStage)?.name ?? 'Running'
   }
+}
+
+const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
+  enter: 'Entered',
+  leave: 'Left',
+  voice: 'Voice',
+  note: 'Note',
+  action: 'Action',
+  still: 'Still',
+}
+
+/** Single vocabulary for ledger rows, reused by the activity rail and the report. */
+export function ledgerKindLabel(kind: LedgerKind): string {
+  return LEDGER_KIND_LABEL[kind]
 }
 
 /** Global hotkeys must never fire while the operator is typing (audit C1). */

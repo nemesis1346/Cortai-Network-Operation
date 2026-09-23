@@ -1,4 +1,4 @@
-import type { Alert, Camera, Incident, Site, Snapshot, WatchScore } from '../api/types'
+import type { Alert, Camera, Incident, LedgerEvent, Site, Snapshot, WatchScore } from '../api/types'
 import { sortAlerts } from '../domain/rules'
 
 export const incidentsByLane = (s: Snapshot): Incident[] =>
@@ -26,3 +26,29 @@ export const cameraSummary = (s: Snapshot) => {
 
 /** Unacknowledged desk page, drives the critical band (audit A3). */
 export const activePage = (s: Snapshot) => s.pages.find((p) => !p.acknowledgedAt)
+
+export type LedgerGroup = { kind: 'single'; event: LedgerEvent } | { kind: 'stills'; events: LedgerEvent[] }
+
+/**
+ * Newest-first, with consecutive 'still' captures collapsed into one row
+ * (audit A7: 440 identical "Still captured" rows drowned out everything else).
+ */
+export function groupLedger(events: LedgerEvent[]): LedgerGroup[] {
+  const groups: LedgerGroup[] = []
+  let run: LedgerEvent[] = []
+  const flushRun = () => {
+    if (!run.length) return
+    groups.push(run.length > 1 ? { kind: 'stills', events: run } : { kind: 'single', event: run[0]! })
+    run = []
+  }
+  for (const e of [...events].reverse()) {
+    if (e.kind === 'still') {
+      run.push(e)
+      continue
+    }
+    flushRun()
+    groups.push({ kind: 'single', event: e })
+  }
+  flushRun()
+  return groups
+}
