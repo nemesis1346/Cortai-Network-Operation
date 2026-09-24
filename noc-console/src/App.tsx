@@ -23,7 +23,7 @@ export default function App() {
           {/* DOM order = tab order: centre, right rail, left rail (audit A5). CSS places them visually. */}
           <Center server={server} />
           <RightRail server={server} />
-          <LeftRail />
+          <LeftRail server={server} />
         </div>
         <VoiceStrip />
       </div>

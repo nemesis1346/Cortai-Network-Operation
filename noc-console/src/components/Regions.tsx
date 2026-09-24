@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import type { Snapshot } from '../api/types'
 import { CameraRibbon } from './CameraRibbon'
+import { EstateTree } from './EstateTree'
 import { LaneActivity } from './LaneActivity'
 import { Lanes } from './Lanes'
 import { Queue } from './Queue'
+import { WatchList } from './WatchList'
 
 /** Named landmark with an h2, so headings are real markup (audit B5). */
 function Region({ id, title, children, className }: { id: string; title: string; children?: ReactNode; className?: string }) {
@@ -15,11 +17,11 @@ function Region({ id, title, children, className }: { id: string; title: string;
   )
 }
 
-// LeftRail and voice-strip content are placeholders, replaced in the next steps.
-export const LeftRail = () => (
+// Voice-strip content is still a placeholder, replaced next.
+export const LeftRail = ({ server }: { server: Snapshot }) => (
   <aside className="col rail-l" aria-label="Estate and watch list">
-    <Region id="h-estate" title="Estate" />
-    <Region id="h-watch" title="Watch list · 7 days" />
+    <EstateTree server={server} />
+    <WatchList server={server} />
   </aside>
 )
 

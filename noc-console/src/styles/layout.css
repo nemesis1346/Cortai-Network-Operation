@@ -3,6 +3,15 @@
   grid-template-rows: 48px auto minmax(0, 1fr) 96px;
   height: 100vh;
 }
+/* Explicit rows, not implicit auto-placement: CriticalBand renders `null` when
+   there's no active page, which removes it as a grid item entirely. Without
+   this, auto-placement then shifts .body into the critical band's "auto" row
+   (content-sized, so it starved to ~content height) and .voice into .body's
+   intended 1fr row (it grew to fill the leftover space instead). */
+.topbar { grid-row: 1; }
+.critical-band { grid-row: 2; }
+.body { grid-row: 3; }
+.voice { grid-row: 4; }
 
 /* top bar: brand | shift data centred | health (audit A4) */
 .topbar {
@@ -231,8 +240,10 @@
 .pip.live i { border-radius: 50%; background: var(--green); }
 .pip.motion i { background: var(--amber); transform: rotate(45deg); }
 .pip.down i { border-radius: 1px; background: var(--red); }
+/* Left-anchored, not centred: a centred tooltip clips off-screen for the
+   first couple of pips in the strip, which sit close to the rail's edge. */
 .pip:hover::after, .pip:focus-visible::after {
-  content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 0;
   background: var(--panel-3); border: 1px solid var(--line-strong); padding: 4px 8px; border-radius: var(--r-2);
   font-size: var(--fs-micro); white-space: nowrap; z-index: 30; color: var(--text-1); pointer-events: none;
 }
@@ -307,3 +318,56 @@
 .shift-stats > div { display: flex; flex-direction: column; gap: 2px; }
 .shift-stats u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; }
 .shift-stats b { font-size: var(--fs-body-lg); }
+
+/* ---------- estate tree ---------- */
+
+.estate-region, .watch-region { display: flex; flex-direction: column; min-height: 0; flex: 1 1 0; }
+.estate-body, .watch-body { padding: 0; overflow-y: auto; flex: 1; }
+
+.site { border-bottom: 1px solid var(--line-subtle); }
+.site-h { display: flex; align-items: center; gap: 7px; padding: 8px 12px; width: 100%; text-align: left; min-height: 32px; }
+.site-h:hover { background: var(--panel-2); }
+.site-h b { font-weight: 500; font-size: var(--fs-body); flex: 1; }
+.site-h em { font-style: normal; color: var(--text-3); font-size: var(--fs-micro); }
+.caret { color: var(--text-3); font-size: 9px; display: inline-block; transition: transform .15s; }
+.caret.open { transform: rotate(90deg); }
+
+.cams { padding-bottom: 4px; }
+.cam-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 26px; font-size: var(--fs-body); color: var(--text-2); min-height: 28px; }
+.cam-row:hover { background: var(--panel-2); color: var(--text-1); }
+.cam-row .dot { width: 8px; height: 8px; flex-shrink: 0; }
+.cam-row .dot.live { border-radius: 50%; background: var(--green); }
+.cam-row .dot.motion { background: var(--amber); transform: rotate(45deg); }
+.cam-row .dot.down { border-radius: 1px; background: var(--red); }
+.cam-row .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mask-tag { font-size: var(--fs-micro); color: var(--text-3); }
+
+/* ---------- watch list ---------- */
+
+.wrow { border-bottom: 1px solid var(--line-subtle); }
+.wrow-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; width: 100%; text-align: left; min-height: 40px; }
+.wrow-h:hover { background: var(--panel-2); }
+.wscore { width: 26px; text-align: right; font-size: var(--fs-h); font-weight: 500; flex-shrink: 0; }
+.wmeta { flex: 1; min-width: 0; text-align: left; }
+.wmeta b { display: block; font-weight: 500; font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wmeta em { font-style: normal; color: var(--text-3); font-size: var(--fs-micro); }
+.wtrend { font-size: var(--fs-micro); flex-shrink: 0; }
+.wbar { height: 3px; background: var(--line-subtle); margin: 0 12px 8px; border-radius: 2px; overflow: hidden; }
+.wbar i { display: block; height: 100%; }
+.band-hi { color: var(--red); } .fill-hi { background: var(--red); }
+.band-md { color: var(--amber); } .fill-md { background: var(--amber); }
+.band-lo { color: var(--text-3); } .fill-lo { background: var(--text-3); }
+
+.wdetail { padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.wsig { display: flex; gap: 7px; font-size: var(--fs-body); color: var(--text-2); line-height: 1.35; }
+.wsig u { text-decoration: none; color: var(--amber); flex-shrink: 0; font-size: var(--fs-micro); }
+.wsig em { font-style: normal; color: var(--text-3); display: block; font-size: var(--fs-micro); }
+
+/* Three levels, ≥2:1 apart, instead of the mockup's four (audit B11). */
+.hours { display: flex; gap: 1px; height: 16px; margin-top: 4px; }
+.hours i { flex: 1; border-radius: 1px; background: var(--line-subtle); }
+.hours i.near { background: var(--amber); opacity: .45; }
+.hours i.peak { background: var(--amber); opacity: 1; }
+.hlabel { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--text-3); margin-top: 2px; }
+.wcluster { font-size: var(--fs-micro); color: var(--text-3); margin-top: 2px; }
+.wnote { font-size: var(--fs-body); color: var(--text-2); margin-top: 2px; }
