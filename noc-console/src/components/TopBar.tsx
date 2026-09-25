@@ -2,6 +2,7 @@ import { useNow } from '../hooks/useNow'
 import { cameraSummary } from '../store/selectors'
 import type { Snapshot } from '../api/types'
 import { openCount } from '../domain/rules'
+import { useStore } from '../store/context'
 
 function Clock() {
   const now = useNow()
@@ -11,6 +12,7 @@ function Clock() {
 }
 
 export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (r: 'left' | 'right') => void }) {
+  const store = useStore()
   const cams = cameraSummary(server)
   const open = openCount(server.incidents)
   const decoding = open + cams.motion
@@ -37,6 +39,9 @@ export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (
         <span className="health">{cams.live} / {cams.total} cameras</span>
         <span className="pill warn">Decode {decoding} of {cams.total}</span>
         {cams.down > 0 && <span className="pill crit">{cams.down} camera fault</span>}
+        <button className="btn shortcuts-btn" onClick={() => store.setShortcutsOpen(true)}>
+          Keyboard shortcuts
+        </button>
       </div>
     </header>
   )
