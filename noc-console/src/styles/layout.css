@@ -331,7 +331,7 @@
 .site-h:hover { background: var(--panel-2); }
 .site-h b { font-weight: 500; font-size: var(--fs-body); flex: 1; }
 .site-h em { font-style: normal; color: var(--text-3); font-size: var(--fs-micro); }
-.caret { color: var(--text-3); font-size: 9px; display: inline-block; transition: transform .15s; }
+.caret { color: var(--text-3); font-size: var(--fs-micro); display: inline-block; transition: transform .15s; }
 .caret.open { transform: rotate(90deg); }
 
 .cams { padding-bottom: 4px; }
@@ -489,11 +489,11 @@
 .vs-mic b { font-size: var(--fs-body); font-weight: 500; }
 .vs-mic b.dim { color: var(--text-3); font-weight: 400; }
 
-.vs-transcript { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; position: relative; }
+.vs-transcript { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0; position: relative; }
 .vs-transcript-head { display: flex; align-items: baseline; gap: var(--sp-2); }
 .vs-transcript-head u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase;
   letter-spacing: .06em; flex: 1; }
-.vs-transcript-head .btn { height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-micro); }
+.vs-transcript-head .btn { height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-micro); }
 
 /* Collapsed height is 3 lines (72px), not 2 (audit A8). Expanded grows to
    240px as an overlay above the footer, so the fixed-height shell row never changes. */
