@@ -70,8 +70,10 @@
 .region-body { padding: var(--sp-3); overflow-y: auto; flex: 1; }
 .empty { color: var(--text-3); font-size: var(--fs-body); min-height: 48px; }
 
-.voice { background: var(--panel); border-top: 1px solid var(--line); min-height: 0; overflow: hidden; }
-.voice .hd { border-top: 0; }
+/* Not overflow:hidden: the expanded transcript is an absolutely-positioned
+   descendant that deliberately grows above this 96px row (audit A8), and a
+   clipping ancestor would hide it exactly like the earlier lane-card bug. */
+.voice { background: var(--panel); border-top: 1px solid var(--line); min-height: 0; position: relative; }
 
 .gate { display: grid; place-content: center; gap: var(--sp-3); height: 100vh; padding: var(--sp-5); text-align: center; }
 .gate h1 { font-size: var(--fs-h); font-weight: 600; }
@@ -456,3 +458,60 @@
   padding: var(--sp-2) var(--sp-4); border-radius: var(--r-2); background: var(--panel-3);
   border: 1px solid var(--line-strong); color: var(--text-1); font-size: var(--fs-body); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 .toast.warn { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+/* ---------- voice strip ---------- */
+
+.voice-strip { display: flex; align-items: stretch; gap: var(--sp-4); height: 100%; padding: var(--sp-2) var(--sp-4); }
+
+.vs-speaker { display: flex; align-items: center; gap: var(--sp-2); flex: 0 0 auto; width: 176px;
+  border-right: 1px solid var(--line-subtle); padding-right: var(--sp-3); }
+.vs-speaker > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.vs-speaker u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+.vs-speaker b { font-size: var(--fs-body); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.speaker-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--line-strong); }
+.speaker-dot.ai { background: var(--cyan); }
+.speaker-dot.human { background: var(--amber); }
+
+/* One indicator, five bars — reads as a single waveform, not five separate
+   pulses, and only animates while someone is actually speaking (audit B16). */
+.wave { display: flex; align-items: center; gap: 2px; height: 18px; margin-left: auto; flex-shrink: 0; }
+.wave i { width: 3px; height: 6px; border-radius: 2px; background: var(--line-strong); display: block; }
+.wave.on i { background: var(--cyan); animation: wave-bar .9s ease-in-out infinite; }
+.wave.on i:nth-child(2) { animation-delay: .1s; }
+.wave.on i:nth-child(3) { animation-delay: .2s; }
+.wave.on i:nth-child(4) { animation-delay: .3s; }
+.wave.on i:nth-child(5) { animation-delay: .4s; }
+@keyframes wave-bar { 0%, 100% { height: 5px; } 50% { height: 16px; } }
+
+.vs-mic { display: flex; flex-direction: column; justify-content: center; gap: 1px; flex: 0 0 auto; width: 220px;
+  border-right: 1px solid var(--line-subtle); padding-right: var(--sp-3); }
+.vs-mic u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+.vs-mic b { font-size: var(--fs-body); font-weight: 500; }
+.vs-mic b.dim { color: var(--text-3); font-weight: 400; }
+
+.vs-transcript { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; position: relative; }
+.vs-transcript-head { display: flex; align-items: baseline; gap: var(--sp-2); }
+.vs-transcript-head u { text-decoration: none; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase;
+  letter-spacing: .06em; flex: 1; }
+.vs-transcript-head .btn { height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-micro); }
+
+/* Collapsed height is 3 lines (72px), not 2 (audit A8). Expanded grows to
+   240px as an overlay above the footer, so the fixed-height shell row never changes. */
+.transcript { min-height: 72px; max-height: 72px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--line-subtle); }
+.transcript::-webkit-scrollbar { width: 6px; }
+.transcript::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.transcript.expanded {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + var(--sp-2)); z-index: 50;
+  max-height: 240px; min-height: 240px; background: var(--panel-2); border: 1px solid var(--line-strong);
+  border-radius: var(--r-2); padding: var(--sp-2); box-shadow: 0 -12px 32px rgba(0, 0, 0, .4);
+}
+.tline { display: flex; gap: var(--sp-2); font-size: var(--fs-micro); padding: 1px 0; line-height: 1.4; }
+.tline .ts { color: var(--text-3); flex-shrink: 0; }
+.tline .who { flex-shrink: 0; width: 60px; color: var(--text-2); }
+.tline.ai .who { color: var(--cyan); }
+.tline.op .who { color: var(--violet); }
+.tline .tx { color: var(--text-1); }
+
+.jump-latest { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 51; height: 24px; padding: 0 var(--sp-2);
+  font-size: var(--fs-micro); border-radius: var(--r-full); background: var(--cyan-bg); color: var(--cyan); border: 1px solid var(--cyan); }

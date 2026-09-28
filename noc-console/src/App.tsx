@@ -30,7 +30,7 @@ export default function App() {
           <RightRail server={server} />
           <LeftRail server={server} />
         </div>
-        <VoiceStrip />
+        <VoiceStrip server={server} />
       </div>
       <CloseoutModal />
       <ReportModal />
