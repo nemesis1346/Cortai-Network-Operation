@@ -20,6 +20,11 @@ export function seedEstate(now: number): { sites: Site[]; cameras: Camera[] } {
       cameras.push({
         id, siteId: s.id, name, status, masked,
         downSince: status === 'down' ? ago(now, 298) : undefined,
+        // Phase 1 has no real stream: 'live' + a placeholder latency stand in
+        // for what go2rtc will report, wired through end to end so the UI
+        // has somewhere real to read them from already.
+        signal: status === 'down' ? undefined : 'live',
+        latencyMs: status === 'down' ? undefined : 120,
       })
     }
   }
@@ -35,11 +40,16 @@ export function seedAlerts(now: number): Alert[] {
     { id: 'a1', siteId: 's1', cameraId: '07', priority: 1, state: 'new', title: 'Intruder - occupant exited vehicle',
       raisedAt: ago(now, 14), confidence: 0.94, insidePropertyLine: true,
       chips: ['Repeat plate · 2 sightings / 7d', 'Loiter 41s', 'After hours'],
-      subject: { colour: 'white', body: 'sedan', vehicleConfidence: 0.91, where: 'at the gate', personCount: 2, personCountConfidence: 0.93 } },
+      subject: { colour: 'white', body: 'sedan', vehicleConfidence: 0.91, where: 'at the gate', personCount: 2, personCountConfidence: 0.93 },
+      detections: [{ label: 'person', confidence: 0.94, box: [0.40, 0.20, 0.22, 0.55] }] },
     { id: 'a2', siteId: 's3', cameraId: '05', priority: 1, state: 'new', title: 'Intruder - two on foot at north stalls',
       raisedAt: ago(now, 38), confidence: 0.88, insidePropertyLine: true,
       chips: ['Door handle contact', 'No vehicle association', 'After hours'],
-      subject: { colour: 'dark', body: 'hatchback', vehicleConfidence: 0.58, where: 'at the north stalls', personCount: 2, personCountConfidence: 0.9 } },
+      subject: { colour: 'dark', body: 'hatchback', vehicleConfidence: 0.58, where: 'at the north stalls', personCount: 2, personCountConfidence: 0.9 },
+      detections: [
+        { label: 'person', confidence: 0.88, box: [0.22, 0.30, 0.18, 0.48] },
+        { label: 'person', confidence: 0.81, box: [0.58, 0.28, 0.18, 0.50] },
+      ] },
     { id: 'a3', siteId: 's2', cameraId: '19', priority: 2, state: 'new', title: 'Camera offline 5 minutes',
       raisedAt: ago(now, 302), confidence: null, insidePropertyLine: false,
       chips: ['Stream lost', 'PoE port down'],
@@ -47,15 +57,18 @@ export function seedAlerts(now: number): Alert[] {
     { id: 'a4', siteId: 's5', cameraId: '31', priority: 2, state: 'new', title: 'Person photographing gate',
       raisedAt: ago(now, 441), confidence: 0.72, insidePropertyLine: false,
       chips: ['Phone raised 9s', 'Sidewalk, off-property'],
-      suppressedReason: 'Subject outside property line - log only, do not address' },
+      suppressedReason: 'Subject outside property line - log only, do not address',
+      detections: [{ label: 'person', confidence: 0.72, box: [0.56, 0.32, 0.16, 0.42] }] },
     { id: 'a6', siteId: 's1', cameraId: '09', priority: 2, state: 'new', title: 'Person at loading door after hours',
       raisedAt: ago(now, 620), confidence: 0.81, insidePropertyLine: true,
       chips: ['Door contact', 'After hours'],
-      subject: { where: 'at the loading door', personCount: 1, personCountConfidence: 0.7 } },
+      subject: { where: 'at the loading door', personCount: 1, personCountConfidence: 0.7 },
+      detections: [{ label: 'person', confidence: 0.81, box: [0.44, 0.24, 0.19, 0.52] }] },
     { id: 'a5', siteId: 's4', cameraId: '03', priority: 3, state: 'held', title: 'Delivery detected',
       raisedAt: ago(now, 930), confidence: 0.97, insidePropertyLine: false,
       chips: ['Livery matched', 'Auto-logged'],
-      suppressedReason: 'Delivery signature matched · plate on allow-list' },
+      suppressedReason: 'Delivery signature matched · plate on allow-list',
+      detections: [{ label: 'vehicle', confidence: 0.97, box: [0.32, 0.34, 0.34, 0.40] }] },
   ]
 }
 

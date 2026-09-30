@@ -39,6 +39,7 @@ export function Lane({
   const ladderText = ladderLabel(inc.ladder, inc.operatorOwned)
 
   const site = server.sites.find((s) => s.id === inc.siteId)
+  const camera = server.cameras.find((c) => c.id === inc.cameraId)
   const watch = server.watch.find((w) => w.siteId === inc.siteId)
   const micOn = server.micOwnerIncidentId === inc.id
   const allEvidence = server.evidence.filter((e) => e.incidentId === inc.id)
@@ -80,12 +81,13 @@ export function Lane({
       </div>
 
       <div className="lfeed">
-        <VideoSlot cameraId={inc.cameraId} tier={focused ? 'full' : 'sub'} />
-        {alert.confidence !== null && (
-          <div className="bbox">
-            <b>Person {alert.confidence.toFixed(2)}</b>
-          </div>
-        )}
+        <VideoSlot
+          cameraId={inc.cameraId}
+          tier={focused ? 'full' : 'sub'}
+          signal={camera?.signal}
+          latencyMs={camera?.latencyMs}
+          detections={alert.detections}
+        />
         <div className="osd tl">
           <span className="tag rec">● REC</span>
           <span className="tag mono">CAM {inc.cameraId}</span>

@@ -15,6 +15,15 @@ export type ISODate = string
 
 export type CameraStatus = 'live' | 'motion' | 'down'
 
+/**
+ * Health of an actively-watched stream, distinct from Camera.status (which
+ * describes the camera whether or not anyone is currently decoding it).
+ * Phase 1 never produces anything but 'live' — typed now so the real player
+ * (WebRTC/go2rtc) has somewhere to report into without a prop-shape change
+ * later. See noc-console/docs/API-CONTRACT.md.
+ */
+export type VideoSignal = 'live' | 'degraded' | 'lost' | 'connecting'
+
 export interface Camera {
   id: string // "07"
   siteId: string
@@ -24,6 +33,21 @@ export interface Camera {
   masked?: boolean
   /** When status became 'down'. Present only if down. */
   downSince?: ISODate
+  /** Current stream health. Absent when nothing is actively decoding it. */
+  signal?: VideoSignal
+  /** Glass-to-glass latency in ms for the active stream, when known. */
+  latencyMs?: number
+}
+
+/**
+ * One AI detection backing a bounding-box overlay. `box` is `[x, y, w, h]`,
+ * each 0..1 of the frame — same convention a real detector would use, so
+ * this isn't a UI-only shape invented for the mock.
+ */
+export interface Detection {
+  label: string
+  confidence: number // 0..1
+  box: [x: number, y: number, w: number, h: number]
 }
 
 export interface Site {
@@ -69,6 +93,8 @@ export interface Alert {
   insidePropertyLine: boolean
   chips: string[]
   subject?: SubjectDescription
+  /** AI detections backing the bounding-box overlay, when available. */
+  detections?: Detection[]
   /**
    * If set, the voice ladder is suppressed for this alert and the text says why.
    * Example: "Subject outside property line - log only, do not address".
