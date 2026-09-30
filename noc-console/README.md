@@ -3,6 +3,10 @@
 React + Vite + TypeScript. Spec of record: `../docs/cortai-soc-operator-console (1).html`.
 UX/UI audit: `../docs/CORTAI-Sentry-UX-UI-Audit-EВ.docx`. Brief: `../docs/NOC-Task-Brief-Marco.md`.
 
+Oleg's v2 redesign (`../docs-v2/`, gitignored — reference only) is pending Yassine's sign-off; see
+[the sign-off memo](https://claude.ai/artifact/NExg3jmFhJS6pUpg1x9b2W). Not implemented here yet.
+`docs/API-CONTRACT.md` is the unblocked engineering prep that doesn't depend on that sign-off.
+
 ## Run
 ```bash
 npm install
