@@ -92,6 +92,22 @@ export class NocStore {
     this.patchUi({ queueRefusal: null })
   }
 
+  async holdAlert(alertId: string): Promise<void> {
+    const r = await this.client.holdAlert(alertId)
+    if (!r.ok) this.toast(r.error.message, 'warn')
+  }
+
+  /** "Page second desk" from the lane-limit refusal (Yassine, 1 Oct). */
+  async pageSecondDesk(): Promise<void> {
+    const r = await this.client.requestDeskPage('Lane limit reached - operator requested second desk')
+    if (!r.ok) {
+      this.toast(r.error.message, 'warn')
+      return
+    }
+    this.patchUi({ queueRefusal: null })
+    this.toast('Desk 3 paged', 'info')
+  }
+
   /** Focus a lane. If the mic is open elsewhere, ask first. */
   async requestFocus(incidentId: string): Promise<void> {
     const s = this.state.server

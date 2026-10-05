@@ -131,7 +131,7 @@
 .lane-h { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--line-subtle); flex-shrink: 0; }
 .lane-key { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
-  border-radius: var(--r-2); border: 1px solid var(--line-strong); font: 12px/1 'JetBrains Mono', monospace; flex-shrink: 0; }
+  border-radius: var(--r-2); border: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 12px; line-height: 1; flex-shrink: 0; }
 .lane-site { flex: 1 1 auto; min-width: 12ch; font-size: var(--fs-body-lg); font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lane-age { flex: 0 0 auto; font-size: var(--fs-micro); color: var(--text-2); }
@@ -206,24 +206,32 @@
 .tab { flex: 1; height: 32px; font-size: var(--fs-body); color: var(--text-3); border-bottom: 2px solid transparent; }
 .tab[aria-selected="true"] { color: var(--text-1); border-bottom-color: var(--cyan); background: var(--panel-3); }
 .tab-n { font-size: var(--fs-micro); margin-left: 4px; }
-.refusal { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+.refusal { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
   background: var(--amber-bg); color: var(--amber); font-size: var(--fs-body); flex-shrink: 0; }
-.refusal .btn { margin-left: auto; height: 28px; flex-shrink: 0; }
+.refusal span { flex: 1 1 auto; min-width: 16ch; }
+.refusal .btn { height: 28px; flex-shrink: 0; }
+.refusal .btn:first-of-type { margin-left: auto; }
 .queue-list { flex: 1; overflow-y: auto; padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); }
 .row { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-2);
-  border: 1px solid var(--line-subtle); border-left: 3px solid transparent; background: var(--panel-2); text-align: left; width: 100%; }
+  border: 1px solid var(--line-subtle); border-left: 3px solid transparent; background: var(--panel-2); text-align: left;
+  width: 100%; cursor: pointer; }
 .row:hover { background: var(--panel-3); }
+/* P1-P4: computed priority (domain/rules.ts#derivePriority), not the raw AI severity. */
 .row.p1 { border-left-color: var(--red); }
 .row.p2 { border-left-color: var(--amber); }
-.row.p3, .row.muted { border-left-color: var(--line); opacity: .75; }
+.row.p3 { border-left-color: var(--text-3); }
+.row.p4, .row.muted { border-left-color: var(--line); opacity: .75; }
 .row.live { border-color: var(--cyan); }
 .row-t { display: flex; align-items: baseline; gap: var(--sp-2); }
+.row-t .pr { flex-shrink: 0; font-size: var(--fs-micro); color: var(--text-3); }
 .row-t b { flex: 1; font-size: var(--fs-body-lg); font-weight: 500; }
 .row .age { font-size: var(--fs-micro); color: var(--text-3); flex-shrink: 0; }
 .row .age.hot { color: var(--red); }
 .row p { font-size: var(--fs-body); color: var(--text-2); }
+.row-foot { display: flex; align-items: center; gap: var(--sp-2); min-height: 20px; }
 .lanetag { align-self: flex-start; font-size: var(--fs-micro); padding: 1px 6px; border-radius: var(--r-full);
   background: var(--cyan-bg); color: var(--cyan); }
+.row-hold { margin-left: auto; height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-micro); }
 
 /* Right rail: queue and activity split the height evenly. Same specificity as
    `.col > section:first-child` above, placed later, so it wins the tie for
@@ -410,7 +418,7 @@
 
 .memo-label { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-label); color: var(--text-2); }
 .memo-label.bad { color: var(--red); }
-.memo-count { font-size: var(--fs-micro); color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+.memo-count { font-size: var(--fs-micro); color: var(--text-3); font-family: var(--font-mono); }
 .memo-label.bad .memo-count { color: var(--red); }
 .memo-field { width: 100%; resize: vertical; padding: var(--sp-2); border-radius: var(--r-2);
   background: var(--panel-2); border: 1px solid var(--line); color: var(--text-1); font-size: var(--fs-body);
@@ -447,7 +455,7 @@
   color: var(--text-2); margin-top: var(--sp-2); }
 .report-body h4:first-child { margin-top: 0; }
 .report-body p, .report-body li { font-size: var(--fs-body); color: var(--text-1); line-height: 1.6; }
-.mono-list { font-family: 'JetBrains Mono', monospace; font-size: var(--fs-micro); color: var(--text-2);
+.mono-list { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--text-2);
   list-style: none; display: flex; flex-direction: column; gap: 2px; }
 
 .sc-table { width: 100%; border-collapse: collapse; }

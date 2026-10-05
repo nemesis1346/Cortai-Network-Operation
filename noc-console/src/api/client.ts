@@ -18,6 +18,8 @@ export interface NocClient {
   subscribe(handler: (event: ServerEvent) => void): () => void
 
   openIncident(alertId: string): Promise<Result<Incident>>
+  /** Parks a 'new' alert without opening a lane. Yassine, 1 Oct: keep the Held tab, add this action. */
+  holdAlert(alertId: string): Promise<Result<null>>
   closeIncident(incidentId: string, input: CloseIncidentInput): Promise<Result<IncidentReport>>
   setFocus(incidentId: string | null): Promise<Result<null>>
   /** incidentId null releases the mic. Without force, a bound mic returns MIC_BUSY. */
@@ -27,4 +29,6 @@ export interface NocClient {
   setStrobe(incidentId: string, on: boolean): Promise<Result<null>>
   addNote(incidentId: string, text: string): Promise<Result<null>>
   acknowledgePage(desk: number): Promise<Result<null>>
+  /** Manual "Page second desk" from the lane-limit refusal. Yassine, 1 Oct: add as a third button. */
+  requestDeskPage(reason: string): Promise<Result<null>>
 }

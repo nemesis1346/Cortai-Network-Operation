@@ -98,6 +98,27 @@ export class MockNocClient implements NocClient {
 
   /* ---------- NocClient: commands ---------- */
 
+  async holdAlert(alertId: string): Promise<Result<null>> {
+    const alert = this.snap.alerts.find((a) => a.id === alertId)
+    if (!alert) return fail('NOT_FOUND', 'Alert not found')
+    if (alert.state !== 'new') return fail('INVALID_STATE', 'Only a new alert can be held')
+    this.setAlertState(alert, 'held')
+    const site = this.snap.sites.find((s) => s.id === alert.siteId)
+    this.transcript('sys', `Held · ${alert.title} · ${site?.name ?? alert.siteId}`)
+    return ok(null)
+  }
+
+  async requestDeskPage(reason: string): Promise<Result<null>> {
+    if (this.snap.pages.some((p) => !p.acknowledgedAt)) {
+      return fail('INVALID_STATE', 'Desk 3 is already paged')
+    }
+    const page: DeskPage = { desk: 3, pagedAt: new Date().toISOString(), reason }
+    this.snap.pages.push(page)
+    this.transcript('sys', `Desk 3 paged - ${reason}`)
+    this.emit({ type: 'desk.paged', page })
+    return ok(null)
+  }
+
   async openIncident(alertId: string): Promise<Result<Incident>> {
     const existing = this.snap.incidents.find((i) => i.alertId === alertId)
     if (existing) return ok(existing)
@@ -111,10 +132,11 @@ export class MockNocClient implements NocClient {
     const laneIndex = ([0, 1, 2] as const).find((n) => !used.has(n)) ?? 0
     const id = `i${++this.seq}`
     const suppressed = alert.suppressedReason
+    const site = this.snap.sites.find((s) => s.id === alert.siteId)
     const ladder: LadderState = {
       incidentId: id,
       status: suppressed ? 'suppressed' : 'running',
-      stages: LADDER_STAGES,
+      stages: site?.ladderStages ?? LADDER_STAGES,
       firedStage: -1,
       startedAt: suppressed ? undefined : now,
       suppressedReason: suppressed,
@@ -129,7 +151,6 @@ export class MockNocClient implements NocClient {
     this.emit({ type: 'incident.upsert', incident })
     this.ledger(incident, 'action', 'Incident opened from queue')
 
-    const site = this.snap.sites.find((s) => s.id === alert.siteId)
     const cam = this.snap.cameras.find((c) => c.id === alert.cameraId)
     this.transcript(
       'sys',
@@ -321,7 +342,7 @@ export class MockNocClient implements NocClient {
       l.status = 'complete'
     }
     this.transcript('ai', text, inc.id)
-    this.ledger(inc, 'voice', `Stage ${index + 1} played · ${LADDER_STAGES[index]?.name}${focused ? ' (operator present)' : ' (unattended)'}`)
+    this.ledger(inc, 'voice', `Stage ${index + 1} played · ${l.stages[index]?.name}${focused ? ' (operator present)' : ' (unattended)'}`)
     if (!inc.operatorOwned) {
       this.speaker({ mode: index === 3 ? 'human' : 'ai', label: `${index === 3 ? 'Siren' : 'AI'} · ${this.siteName(inc)}` })
     }

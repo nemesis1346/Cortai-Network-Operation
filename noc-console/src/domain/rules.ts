@@ -1,8 +1,25 @@
 import type { Alert, Incident, LadderState, LedgerKind, WatchScore } from '../api/types'
 import { LANE_LETTERS, MAX_LANES, MEMO_MIN_LENGTH, SLOT_MIN_CONFIDENCE } from './constants'
 
+export type QueuePriority = 'P1' | 'P2' | 'P3' | 'P4'
+
 /**
- * Queue priority: inside property line > watch index > age.
+ * P1–P4 is computed, never set by hand (Yassine, 1 Oct, going with Oleg's
+ * hybrid from the v2 sign-off): severity — the AI's raw event-type
+ * classification — crossed with whether the subject is inside the property
+ * line. Inside bumps nothing; outside drops one tier, floored at P4.
+ *   severity 1, inside  -> P1      severity 1, outside -> P2
+ *   severity 2, inside  -> P2      severity 2, outside -> P3
+ *   severity 3, inside  -> P3      severity 3, outside -> P4
+ * Documented identically in docs/API-CONTRACT.md §1.
+ */
+export function derivePriority(alert: Pick<Alert, 'severity' | 'insidePropertyLine'>): QueuePriority {
+  const tier = Math.min(4, alert.severity + (alert.insidePropertyLine ? 0 : 1))
+  return `P${tier}` as QueuePriority
+}
+
+/**
+ * Queue priority: P1–P4 (derived, see derivePriority) > watch index > age.
  * Lexicographic, so age can never outrank a higher tier (the mockup's
  * weighted sum let a long-waiting alert leapfrog a watch-index difference).
  */
@@ -11,7 +28,9 @@ export function compareAlerts(
   b: Alert,
   watchBySite: ReadonlyMap<string, WatchScore>,
 ): number {
-  if (a.insidePropertyLine !== b.insidePropertyLine) return a.insidePropertyLine ? -1 : 1
+  const pa = Number(derivePriority(a).slice(1))
+  const pb = Number(derivePriority(b).slice(1))
+  if (pa !== pb) return pa - pb
   const wa = watchBySite.get(a.siteId)?.score ?? 0
   const wb = watchBySite.get(b.siteId)?.score ?? 0
   if (wa !== wb) return wb - wa

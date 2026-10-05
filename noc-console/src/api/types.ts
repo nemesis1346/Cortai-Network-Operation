@@ -55,6 +55,13 @@ export interface Site {
   name: string // "138 Hope St N"
   locality: string // "Port Hope"
   cameraIds: string[]
+  /**
+   * Overrides the global response-ladder stage timings for incidents at this
+   * site. Falls back to domain/constants.ts's LADDER_STAGES when absent.
+   * Yassine, 1 Oct: ladder timings come from the site procedure, 30/45/60s
+   * (the existing default) as fallback.
+   */
+  ladderStages?: LadderStageDef[]
 }
 
 /* ---------- Alerts ---------- */
@@ -67,8 +74,15 @@ export interface Site {
  */
 export type AlertState = 'new' | 'working' | 'held' | 'closed'
 
-/** 1 = highest. */
-export type AlertPriority = 1 | 2 | 3
+/**
+ * The AI's raw event-type classification — 1 = highest. This is an input,
+ * not the sort key: the queue's actual priority (P1–P4) is computed from
+ * this plus insidePropertyLine. See domain/rules.ts#derivePriority and
+ * docs/API-CONTRACT.md §1. Yassine, 1 Oct: "P derived deterministically
+ * from inside-the-line, never set by hand" — this field is the deterministic
+ * input, not a hand-set P value.
+ */
+export type AlertSeverity = 1 | 2 | 3
 
 export interface SubjectDescription {
   colour?: string
@@ -83,7 +97,7 @@ export interface Alert {
   id: string
   siteId: string
   cameraId: string
-  priority: AlertPriority
+  severity: AlertSeverity
   state: AlertState
   title: string
   raisedAt: ISODate

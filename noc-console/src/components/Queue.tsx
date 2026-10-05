@@ -1,5 +1,5 @@
 import type { Alert, AlertState, Snapshot } from '../api/types'
-import { laneLetter } from '../domain/rules'
+import { derivePriority, laneLetter } from '../domain/rules'
 import { fmtClock } from '../domain/timing'
 import { useNow } from '../hooks/useNow'
 import { useStore, useUi } from '../store/context'
@@ -24,20 +24,45 @@ function AgeTag({ raisedAt }: { raisedAt: string }) {
   return <span className={`age mono ${sec < 60 ? 'hot' : ''}`}>{fmtClock(sec)}</span>
 }
 
+/** A div, not a button: it hosts a real nested "Hold" button, which a <button>
+ * can't contain. Taking the alert is still one click, just on a role="button". */
 function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
   const store = useStore()
+  const priority = derivePriority(alert)
   return (
-    <button
-      className={`row p${alert.priority} ${lane ? 'live' : ''} ${alert.priority === 3 ? 'muted' : ''}`}
+    <div
+      className={`row ${priority.toLowerCase()} ${lane ? 'live' : ''} ${priority === 'P4' ? 'muted' : ''}`}
+      role="button"
+      tabIndex={0}
       onClick={() => void store.openIncident(alert.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          void store.openIncident(alert.id)
+        }
+      }}
     >
       <div className="row-t">
+        <span className="pr mono">{priority}</span>
         <b>{alert.title}</b>
         <AgeTag raisedAt={alert.raisedAt} />
       </div>
       <p>Cam {alert.cameraId} · {alert.chips[0] ?? ''}</p>
-      {lane && <span className="lanetag">Lane {lane}</span>}
-    </button>
+      <div className="row-foot">
+        {lane && <span className="lanetag">Lane {lane}</span>}
+        {alert.state === 'new' && (
+          <button
+            className="btn row-hold"
+            onClick={(e) => {
+              e.stopPropagation()
+              void store.holdAlert(alert.id)
+            }}
+          >
+            Hold
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -67,6 +92,7 @@ export function Queue({ server }: { server: Snapshot }) {
       {ui.queueRefusal && (
         <div className="refusal" role="alert">
           <span>{ui.queueRefusal}</span>
+          <button className="btn" onClick={() => void store.pageSecondDesk()}>Page second desk</button>
           <button className="btn" onClick={() => store.dismissRefusal()}>Dismiss</button>
         </div>
       )}

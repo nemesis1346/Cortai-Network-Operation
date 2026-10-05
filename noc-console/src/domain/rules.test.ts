@@ -5,6 +5,7 @@ import {
   buildCallout,
   canOpenIncident,
   checkMemo,
+  derivePriority,
   isTypingTarget,
   ladderLabel,
   sortAlerts,
@@ -12,7 +13,7 @@ import {
 import { attendedSec, fmtClock, ladderElapsedSec, plural, secondsToNextStage, unattendedSec } from './timing'
 
 const alert = (o: Partial<Alert>): Alert => ({
-  id: 'x', siteId: 's1', cameraId: '01', priority: 1, state: 'new', title: 't',
+  id: 'x', siteId: 's1', cameraId: '01', severity: 1, state: 'new', title: 't',
   raisedAt: '2026-01-01T00:00:00Z', confidence: 0.9, insidePropertyLine: false, chips: [], ...o,
 })
 const watch = (siteId: string, score: number): WatchScore => ({
@@ -20,15 +21,27 @@ const watch = (siteId: string, score: number): WatchScore => ({
   clusterWindow: null, peakHours: [], signals: [], note: '',
 })
 
+describe('derivePriority', () => {
+  it('computes P1-P4 from severity x inside-the-line, never set by hand', () => {
+    expect(derivePriority({ severity: 1, insidePropertyLine: true })).toBe('P1')
+    expect(derivePriority({ severity: 1, insidePropertyLine: false })).toBe('P2')
+    expect(derivePriority({ severity: 2, insidePropertyLine: true })).toBe('P2')
+    expect(derivePriority({ severity: 2, insidePropertyLine: false })).toBe('P3')
+    expect(derivePriority({ severity: 3, insidePropertyLine: true })).toBe('P3')
+    expect(derivePriority({ severity: 3, insidePropertyLine: false })).toBe('P4')
+  })
+})
+
 describe('queue priority', () => {
-  it('inside property line beats a higher watch index', () => {
+  it('P1 beats P2 regardless of watch index (Yassine, 1 Oct: P is the primary key)', () => {
     const out = sortAlerts(
-      [alert({ id: 'hi-watch', siteId: 's2' }), alert({ id: 'inside', siteId: 's1', insidePropertyLine: true })],
+      [alert({ id: 'p2-hi-watch', siteId: 's2', severity: 1, insidePropertyLine: false }),
+       alert({ id: 'p1-lo-watch', siteId: 's1', severity: 1, insidePropertyLine: true })],
       [watch('s1', 10), watch('s2', 90)],
     )
-    expect(out.map((a) => a.id)).toEqual(['inside', 'hi-watch'])
+    expect(out.map((a) => a.id)).toEqual(['p1-lo-watch', 'p2-hi-watch'])
   })
-  it('watch index beats age', () => {
+  it('within the same priority, watch index beats age', () => {
     const out = sortAlerts(
       [alert({ id: 'old', siteId: 's1', raisedAt: '2026-01-01T00:00:00Z' }),
        alert({ id: 'watched', siteId: 's2', raisedAt: '2026-01-01T05:00:00Z' })],

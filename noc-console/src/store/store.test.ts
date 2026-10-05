@@ -62,4 +62,22 @@ describe('store over the mock client', () => {
     expect(store.getState().ui.report).not.toBeNull()
     expect(alertCounts(server(store)).working).toBe(0)
   })
+
+  it('holds a new alert without opening a lane (Yassine, 1 Oct)', async () => {
+    const store = await boot()
+    await store.holdAlert('a1')
+    const s = server(store)
+    expect(s.alerts.find((a) => a.id === 'a1')?.state).toBe('held')
+    expect(s.incidents.length).toBe(0)
+  })
+
+  it('pages the second desk on request and clears the refusal', async () => {
+    const store = await boot()
+    for (const id of ['a1', 'a2', 'a3']) await store.openIncident(id)
+    await store.openIncident('a4') // refused, 3 lanes already open
+    expect(store.getState().ui.queueRefusal).not.toBeNull()
+    await store.pageSecondDesk()
+    expect(store.getState().ui.queueRefusal).toBeNull()
+    expect(server(store).pages.some((p) => !p.acknowledgedAt)).toBe(true)
+  })
 })
