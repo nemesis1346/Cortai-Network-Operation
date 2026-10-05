@@ -5,14 +5,14 @@ html, body, #root { height: 100%; }
 body {
   background: var(--ink);
   color: var(--text-1);
-  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: var(--fs-body);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
 }
-.mono { font-family: 'JetBrains Mono', monospace; }
+.mono { font-family: var(--font-mono); }
 /* Browsers give form controls their own default font-size (Chromium: 13.3333px,
    ~16px x 0.833) instead of inheriting it — a classic reset gap. Without this,
    every unstyled button silently breaks the 11px floor / whole-pixel type scale

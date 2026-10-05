@@ -29,6 +29,11 @@
   --violet: #b8a6e4; /* #A088D8 */
   --violet-bg: #221c36;
 
+  /* IBM Plex Sans + Mono: v2's default pairing (approved by Yassine, 1 Oct).
+     Mockup originals: Archivo, JetBrains Mono. */
+  --font-body: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+
   /* type scale: whole pixels only, 11px floor */
   --fs-micro: 11px;
   --fs-label: 12px;
