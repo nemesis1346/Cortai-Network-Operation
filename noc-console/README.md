@@ -3,9 +3,10 @@
 React + Vite + TypeScript. Spec of record: `../docs/cortai-soc-operator-console (1).html`.
 UX/UI audit: `../docs/CORTAI-Sentry-UX-UI-Audit-EВ.docx`. Brief: `../docs/NOC-Task-Brief-Marco.md`.
 
-Oleg's v2 redesign (`../docs-v2/`, gitignored — reference only) is pending Yassine's sign-off; see
-[the sign-off memo](https://claude.ai/artifact/NExg3jmFhJS6pUpg1x9b2W). Not implemented here yet.
-`docs/API-CONTRACT.md` is the unblocked engineering prep that doesn't depend on that sign-off.
+Oleg's v2 redesign (`../docs-v2/`, gitignored — reference only): Yassine signed off on most of it 1 Oct.
+`docs/DECISIONS.md` is the full log — what's built, what's documented-but-waiting, what's still blocked
+on a Lane Workspace / camera-wall Figma call. `docs/API-CONTRACT.md` is the engineering contract
+(endpoints, events, the queue-priority derivation) that doesn't depend on that call.
 
 ## Run
 ```bash
@@ -34,7 +35,9 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
 - The server sends anchors (`openedAt`, `focusedSince`, `ladder.startedAt`); the client derives running timers
   (`src/domain/timing.ts`), so there is no per-second global re-render.
 - Alert `working` follows an open incident; it is never seeded (fixes the audit's C5 counter mismatch).
-- Queue rank is lexicographic: inside property line, then watch index, then age.
+- Queue rank is lexicographic: computed priority P1–P4 (severity × inside-the-line, never hand-set —
+  `domain/rules.ts#derivePriority`), then watch index, then age. Changed 2 Oct per Yassine's decision;
+  see `docs/DECISIONS.md`.
 - The voice strip has no ladder mini-status panel. The brief lists one, but the approved audit (A9) found it
   duplicated each lane's own ladder row under different wording and told us to remove it — the audit wins
   where it conflicts with the brief, per the standing decision on this project.

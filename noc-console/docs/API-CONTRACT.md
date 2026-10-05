@@ -1,22 +1,39 @@
 # API & event contract — draft
 
-Status: engineering draft, mine to own (`OPEN-QUESTIONS.md` #9–13 in `docs-v2/`). Doesn't depend on
-Yassine's v2 sign-off — everything here extends `src/api/types.ts` / `src/api/client.ts`, the contract
-he already has from phase 1, and nothing here commits to a v2 interaction-model decision.
+Status: engineering draft, mine to own (`OPEN-QUESTIONS.md` #9–13 in `docs-v2/`), updated 2 Oct with
+Yassine's decisions from the [sign-off memo](https://claude.ai/artifact/NExg3jmFhJS6pUpg1x9b2W) — see
+`DECISIONS.md` for the full log. Everything here extends `src/api/types.ts` / `src/api/client.ts`, the
+contract he already has from phase 1.
 
 Cross-references: `docs-v2/docs/STATES.md` (every v2 transition, timer and side effect),
-`docs-v2/docs/OPEN-QUESTIONS.md` (the five items this document answers), `src/api/types.ts` (source of
+`docs-v2/docs/OPEN-QUESTIONS.md` (the items this document answers), `src/api/types.ts` (source of
 truth for shapes — this document explains and extends it, never duplicates it silently out of sync).
 
 ## 1. Scope: what this does and doesn't decide
 
-This is a transport and data contract. It does not choose the interaction model, the queue sort
-formula, or the auth flow — those are the two blockers and the eight open questions in the
-[sign-off memo](https://claude.ai/artifact/NExg3jmFhJS6pUpg1x9b2W). Building the endpoints below
-doesn't require those answers; building the *screens* that call them does.
+This is a transport and data contract. The queue sort formula is now decided and **implemented**
+(`domain/rules.ts#derivePriority`, §1a below) — it was the one open item that was pure domain logic,
+independent of which interaction model ships. The interaction model itself and the auth flow are still
+open, pending the Lane Workspace / camera-wall Figma call. Building the endpoints below doesn't require
+those answers; building the *screens* that call them does.
 
-Not touched here, on purpose: `Alert.priority`, `Incident` lifecycle shape, any P1–P4 model, `LaneState`.
-Those are exactly the things still open.
+Not touched here, on purpose: `Incident` lifecycle shape, any `LaneState` machine. Those stay with the
+still-open interaction model.
+
+### 1a. Queue priority (decided, implemented)
+
+P1–P4 is computed, never set by hand: `derivePriority(severity, insidePropertyLine)` in
+`domain/rules.ts`. `severity` (renamed from the old `priority` field — `AlertSeverity` in `types.ts`) is
+the AI's raw event-type classification, 1–3; inside bumps nothing, outside drops one tier, floored at P4:
+
+| | inside the line | outside |
+|---|---|---|
+| severity 1 | **P1** | P2 |
+| severity 2 | P2 | P3 |
+| severity 3 | P3 | **P4** |
+
+Full sort: P1→P4, then watch index (descending), then age (oldest first) — same lexicographic structure
+phase 1 already had, with the computed priority inserted as the new primary key ahead of watch index.
 
 ## 2. Transport
 
@@ -152,8 +169,9 @@ the operator no. Notes are the one exception: buffered locally, flushed on recon
 record of what the operator observed, not an action against the site. Needs from backend: the heartbeat
 timeout that actually triggers the `offline` state — `STATES.md` doesn't give a number, and neither do I.
 
-## 11. What changed in code today
+## 11. What changed in code
 
+**29 Sep — video contract (§7):**
 - `src/api/types.ts`: added `Detection`, `VideoSignal`; `Camera` gained `signal?`/`latencyMs?`;
   `Alert` gained `detections?`.
 - `src/api/mock/data.ts`: every live camera seeds `signal: 'live'`, `latencyMs: 120`; every alert with a
@@ -166,11 +184,32 @@ timeout that actually triggers the `offline` state — `STATES.md` doesn't give 
   `.video-latency`.
 
 Verified live: two different alerts render two visibly different, independently-positioned boxes with
-the detection's own label and confidence; the two-person alert renders two boxes at once; typecheck and
-all 17 tests still pass.
+the detection's own label and confidence; the two-person alert renders two boxes at once.
+
+**2 Oct — Yassine's decisions:**
+- Queue priority (§1a): `Alert.priority` renamed `severity` (`AlertSeverity`); `derivePriority` +
+  updated `compareAlerts` in `domain/rules.ts`; `Queue.tsx` reads the computed P1–P4, not the raw field.
+- Hold action: `NocClient.holdAlert`, implemented in `MockNocClient`, a "Hold" button on every `New`-tab
+  queue row (only state transition it allows: `new` → `held`).
+- Page second desk: `NocClient.requestDeskPage`, a third button in the lane-limit refusal banner,
+  produces its own `desk.paged` event distinct from the existing auto-page-at-stage-3 mechanism.
+- Per-site ladder timing: `Site.ladderStages?` overrides the global default; seeded on 3 Tait Street
+  (`[0, 8, 20, 35]` vs. the `[0, 12, 30, 45]` default) to prove it's wired, not just typed.
+- IBM Plex Sans + Mono replaces Archivo + JetBrains Mono as the default pairing (`--font-body`/
+  `--font-mono` tokens in `tokens.css`), approved deviation, orthogonal to the two still-open items.
+
+Verified live: queue rows show the derived P1–P4 (not the raw severity); holding an alert moves it to
+the Held tab without opening a lane; the refusal banner's two buttons both work, and paging produces a
+`CriticalBand` entry distinct from an auto-page; two lanes opened on different sites show different
+ladder countdowns at the same tick (8s vs. 12s to next stage), confirming the per-site override is live,
+not coincidental; the page renders in IBM Plex Sans.
+
+Typecheck clean, 20/20 tests passing throughout.
 
 ## 12. Explicitly not started
 
-Queue sort formula, auth model, the `LaneState` machine (`free`/`focused`/`peripheral`/`escalated`/
-`closing`/`handoff-requested`/`closed`), take-next/raise-incident command shapes, and whether the camera
-wall stays open during an incident. All blocked on the sign-off memo, not on anything in this document.
+Auth model (OTP flow still to arrive from Yassine), the `LaneState` machine (`free`/`focused`/
+`peripheral`/`escalated`/`closing`/`handoff-requested`/`closed`), take-next/raise-incident command
+shapes, and whether the camera wall stays open during an incident. All blocked on the Lane Workspace /
+camera-wall Figma call, not on anything in this document. See `DECISIONS.md` for the full status of
+every item from the sign-off memo.
