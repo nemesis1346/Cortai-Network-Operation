@@ -30,20 +30,18 @@ built — usually because it needs something from Yassine first, like the Lionst
 Approved: almost all of them, **IBM Plex included**. Done — `tokens.css` (`--font-body`/`--font-mono`),
 `index.html`'s font link. IBM Plex Sans + Mono replaces Archivo + JetBrains Mono.
 
-Still open, pending a 30-minute Oleg/Yassine call on Figma (both touch operator attention, "the core of
-this console"):
+**Update, 5 Oct: the Oleg/Yassine call is cancelled.** No formal review gate on the remaining two items.
+Marco stays the point of contact with Oleg and will relay anything that comes up as questions arise,
+rather than a scheduled sign-off. Building proceeds without waiting on it:
 - The single Lane Workspace replacing the current 1/2/2+mini grid.
 - The camera wall staying open while incidents are open (vs. the brief's "locked while open").
 
-**I can't schedule or attend that call** — it's between Yassine and Oleg. I can prepare specific
-questions grounded in the audit/STATES.md if useful (e.g., what exactly breaks "attention" per
-`STATES.md` §2 — a dialog over the focused lane doesn't, but opening a camera view does — and whether
-that distinction survives the wall staying open).
+Both carry slightly more build risk than an explicitly-approved item, since neither got the same
+explicit "yes" the rest of the deviations did — Yassine wanted to see them on Figma first, and that
+viewing isn't happening in a structured way now. Worth a quick confirmation from Marco before either
+ships to real use, not a reason to hold the build.
 
 Everything else approved in the deviations table (estate tree replacing the camera ribbon, Comms Dock
 replacing the voice strip, the mic hand-off dropping its confirm step for an explicit button, the
-1440/1024 breakpoints, the rest of the new token system) is **not yet built**. These are mostly tied to
-the same region layout the two blocked items touch — building them now risks redoing the work once the
-Lane Workspace call lands. Holding them until after that call, per the plan at the end of the sign-off
-memo: "start the Kept items and the engineering contracts now" — which is what §1a, the queue
-decisions, and `API-CONTRACT.md` are.
+1440/1024 breakpoints, the rest of the new token system) is being built now too, in parts — see
+`V2-BUILD-PLAN.md` for the breakdown and order.
