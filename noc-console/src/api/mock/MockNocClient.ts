@@ -228,6 +228,26 @@ export class MockNocClient implements NocClient {
     return ok(null)
   }
 
+  async resumeLadder(incidentId: string): Promise<Result<null>> {
+    const inc = this.snap.incidents.find((i) => i.id === incidentId)
+    if (!inc) return fail('NOT_FOUND', 'Incident not found')
+    const l = inc.ladder
+    if (l.status !== 'halted') return fail('INVALID_STATE', 'Ladder is not halted')
+    const nowMs = Date.now()
+    const pausedAtMs = l.haltedAt ? Date.parse(l.haltedAt) : nowMs
+    // Resume from where it paused, not from 0 and not from wall-clock-including-the-pause.
+    const elapsedAtPause = l.startedAt ? pausedAtMs - Date.parse(l.startedAt) : 0
+    l.startedAt = new Date(nowMs - elapsedAtPause).toISOString()
+    l.haltedAt = undefined
+    l.haltReason = undefined
+    l.status = 'running'
+    this.transcript('sys', `Ladder resumed at T+${Math.floor(elapsedAtPause / 1000)}s`, inc.id)
+    this.ledger(inc, 'action', 'Ladder resumed')
+    this.emit({ type: 'ladder.updated', ladder: { ...l } })
+    this.emit({ type: 'incident.upsert', incident: inc })
+    return ok(null)
+  }
+
   async setSiren(incidentId: string, on: boolean): Promise<Result<null>> {
     const inc = this.snap.incidents.find((i) => i.id === incidentId)
     if (!inc) return fail('NOT_FOUND', 'Incident not found')
@@ -236,7 +256,7 @@ export class MockNocClient implements NocClient {
     this.emit({ type: 'incident.upsert', incident: inc })
     this.ledger(inc, 'action', `Siren ${on ? 'engaged' : 'silenced'} · site loudspeaker array`)
     this.transcript('sys', `Siren ${on ? 'ON' : 'OFF'} · ${this.siteName(inc)}`, inc.id)
-    if (on) this.capture(inc, 'Siren engaged - subject reaction frame')
+    if (on) this.capture(inc, { description: 'Siren engaged - subject reaction frame', kind: 'face' })
     return ok(null)
   }
 
@@ -376,14 +396,14 @@ export class MockNocClient implements NocClient {
     this.emit({ type: 'desk.paged', page })
   }
 
-  private capture(inc: Incident, forced?: string): void {
+  private capture(inc: Incident, forced?: { description: string; kind: EvidenceStill['kind'] }): void {
     const alert = this.snap.alerts.find((a) => a.id === inc.alertId)
     const count = this.snap.evidence.filter((e) => e.incidentId === inc.id).length
     const nowMs = Date.now()
-    const description = forced ?? STILL_CAPTIONS[count % STILL_CAPTIONS.length] ?? 'Still'
+    const { description, kind } = forced ?? STILL_CAPTIONS[count % STILL_CAPTIONS.length]!
     const still: EvidenceStill = {
       id: `e${++this.seq}`, incidentId: inc.id, capturedAt: new Date(nowMs).toISOString(),
-      tPlusSec: incidentAgeSec(inc, nowMs), description, confidence: alert?.confidence ?? null, imageUrl: null,
+      tPlusSec: incidentAgeSec(inc, nowMs), kind, description, confidence: alert?.confidence ?? null, imageUrl: null,
     }
     this.snap.evidence.push(still)
     this.emit({ type: 'evidence.added', still })

@@ -71,6 +71,20 @@ describe('store over the mock client', () => {
     expect(s.incidents.length).toBe(0)
   })
 
+  it('resumes a halted ladder from where it paused, not from 0', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    await store.haltLadder(id)
+    expect(server(store).incidents[0]!.ladder.status).toBe('halted')
+    await store.resumeLadder(id)
+    const l = server(store).incidents[0]!.ladder
+    expect(l.status).toBe('running')
+    expect(l.haltedAt).toBeUndefined()
+    // startedAt shifts forward so elapsed-since-start stays ~0, not restarted at wall-clock now with no offset
+    expect(Date.now() - Date.parse(l.startedAt!)).toBeLessThan(1000)
+  })
+
   it('pages the second desk on request and clears the refusal', async () => {
     const store = await boot()
     for (const id of ['a1', 'a2', 'a3']) await store.openIncident(id)

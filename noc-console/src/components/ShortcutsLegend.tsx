@@ -5,6 +5,7 @@ const SHORTCUTS: [string, string][] = [
   ['A / B / C', 'Focus lane A, B or C'],
   ['M', 'Open or close the microphone on the focused lane'],
   ['H', 'Halt the voice ladder on the focused lane'],
+  ['R', 'Resume a halted ladder, from where it paused'],
   ['Esc', 'Close the open dialog, keeping any memo you typed'],
   ['?', 'Show this legend'],
 ]

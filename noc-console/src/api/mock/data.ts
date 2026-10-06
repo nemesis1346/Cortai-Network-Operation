@@ -1,5 +1,5 @@
 import { LADDER_STAGES } from '../../domain/constants'
-import type { Alert, Camera, ISODate, Site, WatchScore } from '../types'
+import type { Alert, Camera, EvidenceKind, ISODate, Site, WatchScore } from '../types'
 
 const ago = (now: number, sec: number): ISODate => new Date(now - sec * 1000).toISOString()
 
@@ -43,12 +43,20 @@ export function seedAlerts(now: number): Alert[] {
   return [
     { id: 'a1', siteId: 's1', cameraId: '07', severity: 1, state: 'new', title: 'Intruder - occupant exited vehicle',
       raisedAt: ago(now, 14), confidence: 0.94, insidePropertyLine: true,
-      chips: ['Repeat plate · 2 sightings / 7d', 'Loiter 41s', 'After hours'],
+      riskFactors: [
+        { label: 'Repeat plate · 2 sightings / 7d', weight: 'high' },
+        { label: 'Loiter 41s', weight: 'medium' },
+        { label: 'After hours', weight: 'low' },
+      ],
       subject: { colour: 'white', body: 'sedan', vehicleConfidence: 0.91, where: 'at the gate', personCount: 2, personCountConfidence: 0.93 },
       detections: [{ label: 'person', confidence: 0.94, box: [0.40, 0.20, 0.22, 0.55] }] },
     { id: 'a2', siteId: 's3', cameraId: '05', severity: 1, state: 'new', title: 'Intruder - two on foot at north stalls',
       raisedAt: ago(now, 38), confidence: 0.88, insidePropertyLine: true,
-      chips: ['Door handle contact', 'No vehicle association', 'After hours'],
+      riskFactors: [
+        { label: 'Door handle contact', weight: 'high' },
+        { label: 'No vehicle association', weight: 'medium' },
+        { label: 'After hours', weight: 'low' },
+      ],
       subject: { colour: 'dark', body: 'hatchback', vehicleConfidence: 0.58, where: 'at the north stalls', personCount: 2, personCountConfidence: 0.9 },
       detections: [
         { label: 'person', confidence: 0.88, box: [0.22, 0.30, 0.18, 0.48] },
@@ -56,21 +64,33 @@ export function seedAlerts(now: number): Alert[] {
       ] },
     { id: 'a3', siteId: 's2', cameraId: '19', severity: 2, state: 'new', title: 'Camera offline 5 minutes',
       raisedAt: ago(now, 302), confidence: null, insidePropertyLine: false,
-      chips: ['Stream lost', 'PoE port down'],
+      riskFactors: [
+        { label: 'Stream lost', weight: 'high' },
+        { label: 'PoE port down', weight: 'medium' },
+      ],
       suppressedReason: 'No voice channel - camera fault, not a presence event' },
     { id: 'a4', siteId: 's5', cameraId: '31', severity: 2, state: 'new', title: 'Person photographing gate',
       raisedAt: ago(now, 441), confidence: 0.72, insidePropertyLine: false,
-      chips: ['Phone raised 9s', 'Sidewalk, off-property'],
+      riskFactors: [
+        { label: 'Phone raised 9s', weight: 'medium' },
+        { label: 'Sidewalk, off-property', weight: 'low' },
+      ],
       suppressedReason: 'Subject outside property line - log only, do not address',
       detections: [{ label: 'person', confidence: 0.72, box: [0.56, 0.32, 0.16, 0.42] }] },
     { id: 'a6', siteId: 's1', cameraId: '09', severity: 2, state: 'new', title: 'Person at loading door after hours',
       raisedAt: ago(now, 620), confidence: 0.81, insidePropertyLine: true,
-      chips: ['Door contact', 'After hours'],
+      riskFactors: [
+        { label: 'Door contact', weight: 'high' },
+        { label: 'After hours', weight: 'low' },
+      ],
       subject: { where: 'at the loading door', personCount: 1, personCountConfidence: 0.7 },
       detections: [{ label: 'person', confidence: 0.81, box: [0.44, 0.24, 0.19, 0.52] }] },
     { id: 'a5', siteId: 's4', cameraId: '03', severity: 3, state: 'held', title: 'Delivery detected',
       raisedAt: ago(now, 930), confidence: 0.97, insidePropertyLine: false,
-      chips: ['Livery matched', 'Auto-logged'],
+      riskFactors: [
+        { label: 'Livery matched', weight: 'medium' },
+        { label: 'Auto-logged', weight: 'low' },
+      ],
       suppressedReason: 'Delivery signature matched · plate on allow-list',
       detections: [{ label: 'vehicle', confidence: 0.97, box: [0.32, 0.34, 0.34, 0.40] }] },
   ]
@@ -103,15 +123,16 @@ export function seedWatch(): WatchScore[] {
   ]
 }
 
-export const STILL_CAPTIONS = [
-  'Subject in frame, full body, facing camera',
-  'Vehicle plate region, enhanced crop',
-  'Subject at property line, gait sequence',
-  'Two subjects together, relative height reference',
-  'Clothing detail, upper body',
-  'Vehicle three-quarter view, rear quarter panel',
-  'Subject reaction to announcement',
-  'Departure direction, street heading',
+/** Cycled by MockNocClient#capture. kind matches v2's EvidenceThumb categories. */
+export const STILL_CAPTIONS: { description: string; kind: EvidenceKind }[] = [
+  { description: 'Subject in frame, full body, facing camera', kind: 'body' },
+  { description: 'Vehicle plate region, enhanced crop', kind: 'plate' },
+  { description: 'Subject at property line, gait sequence', kind: 'body' },
+  { description: 'Two subjects together, relative height reference', kind: 'body' },
+  { description: 'Clothing detail, upper body', kind: 'body' },
+  { description: 'Vehicle three-quarter view, rear quarter panel', kind: 'scene' },
+  { description: 'Subject reaction to announcement', kind: 'face' },
+  { description: 'Departure direction, street heading', kind: 'scene' },
 ]
 
 export const STAGE_SCRIPT = [

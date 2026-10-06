@@ -1,17 +1,16 @@
 import type { Snapshot } from '../api/types'
 import { incidentsByLane } from '../store/selectors'
-import { Lane } from './Lane'
+import { LaneWorkspace } from './LaneWorkspace'
 
 /**
- * Geometry bound to focus, not to array order (audit C3/C4/A12): with three
- * lanes open, the focused one always takes the wide "focus" grid area and the
- * two others share the "mini" row, whichever lane that happens to be.
+ * One focused Lane Workspace fills the centre (v2 interaction model, replacing
+ * the mockup's 1/2/2+mini grid — see docs/V2-BUILD-PLAN.md Part 1). Other open
+ * lanes render in the right rail via PeripheralLanes, not here.
  */
 export function Lanes({ server }: { server: Snapshot }) {
   const lanes = incidentsByLane(server)
-  const count = lanes.length
 
-  if (count === 0) {
+  if (!lanes.length) {
     return (
       <div className="lanes count-0">
         <div className="lanes-empty">
@@ -23,27 +22,9 @@ export function Lanes({ server }: { server: Snapshot }) {
   }
 
   const focusId = server.focusIncidentId ?? lanes[0]!.id
-  const minis = lanes.filter((l) => l.id !== focusId)
+  const focused = lanes.find((l) => l.id === focusId) ?? lanes[0]!
+  const alert = server.alerts.find((a) => a.id === focused.alertId)
+  if (!alert) return null
 
-  return (
-    <div className={`lanes count-${count}`}>
-      {lanes.map((inc) => {
-        const alert = server.alerts.find((a) => a.id === inc.alertId)
-        if (!alert) return null
-        const isFocus = inc.id === focusId
-        const gridArea = count === 3 ? (isFocus ? 'focus' : minis[0]?.id === inc.id ? 'mini1' : 'mini2') : undefined
-        return (
-          <Lane
-            key={inc.id}
-            inc={inc}
-            alert={alert}
-            server={server}
-            focused={server.focusIncidentId === inc.id}
-            mini={count === 3 && !isFocus}
-            gridArea={gridArea}
-          />
-        )
-      })}
-    </div>
-  )
+  return <LaneWorkspace inc={focused} alert={alert} server={server} />
 }

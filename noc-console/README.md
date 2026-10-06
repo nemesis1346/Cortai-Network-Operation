@@ -1,12 +1,11 @@
-# NOC Console (phase 1, frontend on mock data)
+# NOC Console (frontend on mock data)
 
-React + Vite + TypeScript. Spec of record: `../docs/cortai-soc-operator-console (1).html`.
-UX/UI audit: `../docs/CORTAI-Sentry-UX-UI-Audit-EВ.docx`. Brief: `../docs/NOC-Task-Brief-Marco.md`.
-
-Oleg's v2 redesign (`../docs-v2/`, gitignored — reference only): Yassine signed off on most of it 1 Oct.
-`docs/DECISIONS.md` is the full log — what's built, what's documented-but-waiting, what's still blocked
-on a Lane Workspace / camera-wall Figma call. `docs/API-CONTRACT.md` is the engineering contract
-(endpoints, events, the queue-priority derivation) that doesn't depend on that call.
+React + Vite + TypeScript. Phase 1 (faithful to the original mockup + audit) shipped and was approved
+by Yassine 1 Oct. Now mid-build on Oleg's v2 redesign — see `docs/DECISIONS.md` (what's signed off),
+`docs/V2-BUILD-PLAN.md` (the 7-part build order, status per part) and `docs/API-CONTRACT.md` (the
+engineering contract). Spec of record for phase 1: `../docs/cortai-soc-operator-console (1).html`.
+UX/UI audit: `../docs/CORTAI-Sentry-UX-UI-Audit-EВ.docx`. v2 source: `../docs-v2/` (gitignored, reference
+only).
 
 ## Run
 ```bash
@@ -23,10 +22,12 @@ src/api/client.ts         NocClient interface, the only door between UI and data
 src/api/mock/             MockNocClient (simulates ladder, evidence, paging) + seed data
 src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping
 src/store/                reducer (ServerEvent -> state), NocStore (commands + UI state), selectors, React context
-src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery
-src/components/           All screens built: TopBar, CriticalBand, lanes + queue, camera ribbon,
-                           estate tree + watch list, lane activity, voice strip, closeout/report
-                           modals, mic-confirm dialog, toasts, shortcuts legend
+src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery,
+                           useHoldToArm (v2's 600ms hold-to-arm gesture, pointer + keyboard)
+src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
+                           columns) + PeripheralLanes (other open lanes, right rail — a stub until
+                           Part 2's full LaneCard), Queue, camera ribbon, estate tree + watch list,
+                           voice strip, closeout/report modals, mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -43,5 +44,11 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   where it conflicts with the brief, per the standing decision on this project.
 - No native `window.confirm()`/`alert()` anywhere (mic hand-off, discard-memo, wall-lock refusal all use
   in-app dialogs) — a native dialog blocks the whole page, including other lanes' timers (audit C7).
+- Siren/strobe arm on a 600ms hold (`useHoldToArm`), not a click — v2 UI-SPEC.md §5. The browser's
+  trailing `click` after any press-release, including the hold gesture itself, will silently undo the
+  arm unless the disarm handler checks `justArmed()` first; found live, not in review — see the hook's
+  doc comment and `docs/V2-BUILD-PLAN.md`'s Part 1 notes.
+- The ladder can now resume after a halt (R key), not just halt — picks up from where it paused, not
+  from 0. The mockup/v1 never had this; v2's `onResume` prop made the gap concrete.
 
 

@@ -93,6 +93,14 @@ export interface SubjectDescription {
   personCountConfidence?: number // 0..1
 }
 
+export type RiskFactorWeight = 'high' | 'medium' | 'low'
+
+/** Why-this-alert reasoning (v2 COMPONENTS.md#RiskFactor), replacing the mockup's plain chips. */
+export interface RiskFactorData {
+  label: string
+  weight: RiskFactorWeight
+}
+
 export interface Alert {
   id: string
   siteId: string
@@ -103,9 +111,10 @@ export interface Alert {
   raisedAt: ISODate
   /** Detection confidence 0..1, null for non-detection alerts (camera fault). */
   confidence: number | null
-  /** Subject is inside the property line. Top sort key. */
+  /** Inside the property line — the deterministic input to derivePriority, not a sort key itself. */
   insidePropertyLine: boolean
-  chips: string[]
+  /** Sorted high-weight first; mock seed data keeps that invariant rather than sorting at render. */
+  riskFactors: RiskFactorData[]
   subject?: SubjectDescription
   /** AI detections backing the bounding-box overlay, when available. */
   detections?: Detection[]
@@ -214,11 +223,15 @@ export interface LedgerEvent {
   tPlusSec: number
 }
 
+/** v2 COMPONENTS.md#EvidenceThumb's four categories. */
+export type EvidenceKind = 'plate' | 'face' | 'body' | 'scene'
+
 export interface EvidenceStill {
   id: string
   incidentId: string
   capturedAt: ISODate
   tPlusSec: number
+  kind: EvidenceKind
   description: string
   confidence: number | null
   /** URL of the still. Phase 1 mock returns null and the UI draws a placeholder. */

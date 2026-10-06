@@ -4,8 +4,9 @@ import { incidentsByLane } from '../store/selectors'
 import type { NocStore } from '../store/store'
 
 /**
- * A/B/C focus a lane, M toggles the mic on the focused lane, H halts its ladder.
- * Never fires while typing (audit C1), with a modifier held, or while a modal is open.
+ * A/B/C focus a lane, M toggles the mic on the focused lane, H halts its ladder,
+ * R resumes it (v2 UI-SPEC.md §6). Never fires while typing (audit C1), with a
+ * modifier held, or while a modal is open.
  */
 export function useHotkeys(store: NocStore): void {
   useEffect(() => {
@@ -27,6 +28,7 @@ export function useHotkeys(store: NocStore): void {
       if (!focus) return
       if (key === 'm') void store.toggleMic(focus)
       else if (key === 'h') void store.haltLadder(focus)
+      else if (key === 'r') void store.resumeLadder(focus)
       else if (key === '?') store.setShortcutsOpen(true)
     }
     window.addEventListener('keydown', onKey)

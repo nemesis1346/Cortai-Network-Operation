@@ -14,7 +14,7 @@ import { attendedSec, fmtClock, ladderElapsedSec, plural, secondsToNextStage, un
 
 const alert = (o: Partial<Alert>): Alert => ({
   id: 'x', siteId: 's1', cameraId: '01', severity: 1, state: 'new', title: 't',
-  raisedAt: '2026-01-01T00:00:00Z', confidence: 0.9, insidePropertyLine: false, chips: [], ...o,
+  raisedAt: '2026-01-01T00:00:00Z', confidence: 0.9, insidePropertyLine: false, riskFactors: [], ...o,
 })
 const watch = (siteId: string, score: number): WatchScore => ({
   siteId, cameraId: '01', score, trend: 0, band: 'lo', eventCount: 1,

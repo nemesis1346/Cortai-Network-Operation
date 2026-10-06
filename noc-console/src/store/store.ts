@@ -152,6 +152,7 @@ export class NocStore {
   }
 
   haltLadder = (id: string) => this.client.haltLadder(id)
+  resumeLadder = (id: string) => this.client.resumeLadder(id)
   setSiren = (id: string, on: boolean) => this.client.setSiren(id, on)
   setStrobe = (id: string, on: boolean) => this.client.setStrobe(id, on)
   acknowledgePage = (desk: number) => this.client.acknowledgePage(desk)

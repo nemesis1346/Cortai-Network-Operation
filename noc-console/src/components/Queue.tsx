@@ -47,7 +47,7 @@ function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
         <b>{alert.title}</b>
         <AgeTag raisedAt={alert.raisedAt} />
       </div>
-      <p>Cam {alert.cameraId} · {alert.chips[0] ?? ''}</p>
+      <p>Cam {alert.cameraId} · {alert.riskFactors[0]?.label ?? ''}</p>
       <div className="row-foot">
         {lane && <span className="lanetag">Lane {lane}</span>}
         {alert.state === 'new' && (
@@ -75,6 +75,7 @@ export function Queue({ server }: { server: Snapshot }) {
   return (
     <section className="queue-region" aria-labelledby="h-queue">
       <h2 className="hd" id="h-queue">Queue</h2>
+      <p className="sort-rule">Sorted P1–P4, then watch index, then age (oldest first).</p>
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
           <button

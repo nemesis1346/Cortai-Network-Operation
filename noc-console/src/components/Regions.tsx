@@ -1,8 +1,8 @@
 import type { Snapshot } from '../api/types'
 import { CameraRibbon } from './CameraRibbon'
 import { EstateTree } from './EstateTree'
-import { LaneActivity } from './LaneActivity'
 import { Lanes } from './Lanes'
+import { PeripheralLanes } from './PeripheralLanes'
 import { Queue } from './Queue'
 import { VoiceStripBody } from './VoiceStrip'
 import { WatchList } from './WatchList'
@@ -22,9 +22,9 @@ export const Center = ({ server }: { server: Snapshot }) => (
 )
 
 export const RightRail = ({ server }: { server: Snapshot }) => (
-  <aside className="col rail-r" aria-label="Queue and lane activity">
+  <aside className="col rail-r" aria-label="Queue and other lanes">
     <Queue server={server} />
-    <LaneActivity server={server} />
+    <PeripheralLanes server={server} />
   </aside>
 )
 

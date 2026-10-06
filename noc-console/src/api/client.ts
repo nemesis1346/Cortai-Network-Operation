@@ -25,6 +25,8 @@ export interface NocClient {
   /** incidentId null releases the mic. Without force, a bound mic returns MIC_BUSY. */
   bindMic(incidentId: string | null, opts?: { force?: boolean }): Promise<Result<null>>
   haltLadder(incidentId: string): Promise<Result<null>>
+  /** Resumes a halted ladder from where it paused, not from 0 (v2 UI-SPEC.md §6: H/R). */
+  resumeLadder(incidentId: string): Promise<Result<null>>
   setSiren(incidentId: string, on: boolean): Promise<Result<null>>
   setStrobe(incidentId: string, on: boolean): Promise<Result<null>>
   addNote(incidentId: string, text: string): Promise<Result<null>>
