@@ -3,13 +3,13 @@
   grid-template-rows: 48px auto minmax(0, 1fr) 96px;
   height: 100vh;
 }
-/* Explicit rows, not implicit auto-placement: CriticalBand renders `null` when
-   there's no active page, which removes it as a grid item entirely. Without
-   this, auto-placement then shifts .body into the critical band's "auto" row
+/* Explicit rows, not implicit auto-placement: EscalationBar renders `null`
+   when there's nothing to escalate, which removes it as a grid item entirely.
+   Without this, auto-placement then shifts .body into that row's "auto" slot
    (content-sized, so it starved to ~content height) and .voice into .body's
    intended 1fr row (it grew to fill the leftover space instead). */
 .topbar { grid-row: 1; }
-.critical-band { grid-row: 2; }
+.escalation-band { grid-row: 2; }
 .body { grid-row: 3; }
 .voice { grid-row: 4; }
 
@@ -45,12 +45,16 @@
 .btn:hover { background: var(--panel-3); }
 .rail-toggle { display: none; }
 
-.critical-band {
-  display: flex; align-items: center; gap: var(--sp-3);
+.escalation-band {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
   padding: var(--sp-2) var(--sp-3);
-  background: var(--red-bg); color: var(--red); border-bottom: 1px solid var(--red);
 }
-.critical-band .btn { margin-left: auto; color: var(--text-1); }
+.escalation-band.warning { background: var(--amber-bg); color: var(--amber); border-bottom: 1px solid var(--amber); }
+.escalation-band.critical { background: var(--red-bg); color: var(--red); border-bottom: 1px solid var(--red); }
+.escalation-band span:nth-of-type(2) { flex: 1 1 auto; min-width: 20ch; }
+.escalation-band .btn { color: var(--text-1); flex-shrink: 0; }
+.escalation-band .btn:first-of-type { margin-left: auto; }
+.escalation-band .btn kbd { margin-left: 4px; }
 
 /* body: visual order left | centre | right, DOM order centre | right | left */
 .body { display: grid; grid-template-columns: 264px 1fr 316px; min-height: 0; }
@@ -329,17 +333,36 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .note-input.lane-c { border-color: var(--line-strong); }
 .note-input:disabled { opacity: .5; }
 
-/* ---------- peripheral lanes (right rail; Part 2 upgrades this to full LaneCard) ---------- */
+/* ---------- peripheral lanes: LaneCard (v2 COMPONENTS.md#LaneCard) ---------- */
 
 .peripheral-region { display: flex; flex-direction: column; min-height: 0; }
-.peripheral-body { display: flex; flex-direction: column; gap: var(--sp-2); }
-.peripheral-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-2); border: 1px solid var(--line-subtle); background: var(--panel-2); text-align: left; }
-.peripheral-row:hover { background: var(--panel-3); }
-.peripheral-row.lane-a .lane-key { color: var(--cyan); border-color: var(--cyan); }
-.peripheral-row.lane-b .lane-key { color: var(--violet); border-color: var(--violet); }
-.peripheral-title { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.peripheral-time { flex-shrink: 0; font-size: var(--fs-micro); color: var(--text-3); }
+.peripheral-body { display: flex; flex-direction: column; gap: var(--sp-2); overflow-y: auto; }
+
+.lane-card { display: flex; gap: var(--sp-2); width: 100%; padding: var(--sp-2); text-align: left;
+  border-radius: var(--r-2); border: 1px solid var(--line-subtle); background: var(--panel-2); }
+.lane-card:hover, .lane-card:focus-visible { background: var(--panel-3); }
+.lane-card.lane-a .lane-key { color: var(--cyan); border-color: var(--cyan); }
+.lane-card.lane-b .lane-key { color: var(--violet); border-color: var(--violet); }
+
+.lc-video { position: relative; flex-shrink: 0; width: 72px; height: 48px; border-radius: var(--r-1); overflow: hidden; background: #060809; }
+.lc-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lc-head { display: flex; align-items: baseline; gap: 6px; }
+.lc-head .pr { flex-shrink: 0; font-size: var(--fs-micro); color: var(--text-3); }
+.lc-title { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-time { font-size: var(--fs-micro); color: var(--text-3); }
+
+/* Fills 0 -> 100% toward the 60s auto-page threshold (domain/constants.ts#UNATTENDED_ALARM_SEC). */
+.lc-meter { height: 3px; border-radius: var(--r-full); background: var(--line-subtle); overflow: hidden; }
+.lc-meter i { display: block; height: 100%; background: var(--text-3); transition: width 1s linear; }
+.lane-card.attn-unattended .lc-meter i { background: var(--amber); }
+.lane-card.attn-escalating .lc-meter i { background: var(--red); }
+.lane-card.attn-unattended .lc-time { color: var(--amber); }
+.lane-card.attn-escalating .lc-time { color: var(--red); }
+
+/* Space for the hint is reserved at all times (zero-height collapse would
+   shift the card on hover) — only its opacity/visibility change. */
+.lc-hint { font-size: var(--fs-micro); color: var(--text-2); opacity: 0; visibility: hidden; }
+.lane-card:hover .lc-hint, .lane-card:focus-visible .lc-hint { opacity: 1; visibility: visible; }
 
 /* ---------- estate tree ---------- */
 

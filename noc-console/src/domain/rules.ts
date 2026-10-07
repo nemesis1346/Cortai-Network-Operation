@@ -1,5 +1,13 @@
 import type { Alert, Incident, LadderState, LedgerKind, WatchScore } from '../api/types'
-import { LANE_LETTERS, MAX_LANES, MEMO_MIN_LENGTH, SLOT_MIN_CONFIDENCE } from './constants'
+import {
+  LANE_LETTERS,
+  MAX_LANES,
+  MEMO_MIN_LENGTH,
+  SLOT_MIN_CONFIDENCE,
+  UNATTENDED_ALARM_SEC,
+  UNATTENDED_NOTICE_SEC,
+  UNATTENDED_WARNING_SEC,
+} from './constants'
 
 export type QueuePriority = 'P1' | 'P2' | 'P3' | 'P4'
 
@@ -111,6 +119,24 @@ const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
 /** Single vocabulary for ledger rows, reused by the activity rail and the report. */
 export function ledgerKindLabel(kind: LedgerKind): string {
   return LEDGER_KIND_LABEL[kind]
+}
+
+/** v2 COMPONENTS.md#LaneCard's three-state simplification of the attention table. */
+export type AttentionLevel = 'watching' | 'unattended' | 'escalating'
+
+export function attentionLevel(streakSec: number): AttentionLevel {
+  if (streakSec < UNATTENDED_NOTICE_SEC) return 'watching'
+  if (streakSec < UNATTENDED_WARNING_SEC) return 'unattended'
+  return 'escalating'
+}
+
+/** The EscalationBar's own two-level read of the same clock — it only exists from 45s on. */
+export type EscalationTier = 'none' | 'warning' | 'critical'
+
+export function escalationTier(streakSec: number): EscalationTier {
+  if (streakSec >= UNATTENDED_ALARM_SEC) return 'critical'
+  if (streakSec >= UNATTENDED_WARNING_SEC) return 'warning'
+  return 'none'
 }
 
 /** Global hotkeys must never fire while the operator is typing (audit C1). */

@@ -1,5 +1,6 @@
 import type { Alert, Camera, Incident, LedgerEvent, Site, Snapshot, WatchScore } from '../api/types'
-import { sortAlerts } from '../domain/rules'
+import { escalationTier, sortAlerts } from '../domain/rules'
+import { unattendedStreakSec } from '../domain/timing'
 
 export const incidentsByLane = (s: Snapshot): Incident[] =>
   [...s.incidents].sort((a, b) => a.laneIndex - b.laneIndex)
@@ -24,8 +25,21 @@ export const cameraSummary = (s: Snapshot) => {
   return { total: s.cameras.length, live: s.cameras.length - down, motion, down }
 }
 
-/** Unacknowledged desk page, drives the critical band (audit A3). */
+/** Unacknowledged desk page — the EscalationBar's fallback when no specific
+ * incident is driving it (e.g. the manual "Page second desk" refusal action). */
 export const activePage = (s: Snapshot) => s.pages.find((p) => !p.acknowledgedAt)
+
+/**
+ * The one incident the EscalationBar shows (v2 COMPONENTS.md#EscalationBar:
+ * "Only one bar at a time"): unacknowledged, at warning tier (45s+) or past,
+ * most escalated first so the worst case always wins the single slot.
+ */
+export function mostEscalatedIncident(s: Snapshot, nowMs: number): Incident | null {
+  const candidates = s.incidents
+    .filter((i) => !i.escalationAcked && escalationTier(unattendedStreakSec(i, nowMs)) !== 'none')
+    .sort((a, b) => unattendedStreakSec(b, nowMs) - unattendedStreakSec(a, nowMs))
+  return candidates[0] ?? null
+}
 
 export type LedgerGroup = { kind: 'single'; event: LedgerEvent } | { kind: 'stills'; events: LedgerEvent[] }
 

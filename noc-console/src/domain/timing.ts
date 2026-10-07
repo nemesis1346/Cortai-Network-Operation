@@ -13,8 +13,22 @@ export function attendedSec(inc: Incident, nowMs: number): number {
   return inc.attendedSec + live
 }
 
+/** Lifetime total, for reports and shift stats — not the self-escalation clock. */
 export function unattendedSec(inc: Incident, nowMs: number): number {
   return Math.max(0, incidentAgeSec(inc, nowMs) - attendedSec(inc, nowMs))
+}
+
+/**
+ * How long THIS lane has sat unwatched since focus last left it (or since it
+ * opened without getting focus) — resets to 0 on every visit. This is the
+ * self-escalation clock (v2 STATES.md §2), distinct from `unattendedSec`'s
+ * lifetime total: a lane visited once then left alone for 90s has a lifetime
+ * unattendedSec that keeps growing across visits, but a streak that's 0 again
+ * each time the operator looks at it.
+ */
+export function unattendedStreakSec(inc: Incident, nowMs: number): number {
+  if (!inc.unattendedSince) return 0
+  return Math.max(0, Math.floor((nowMs - ms(inc.unattendedSince)) / 1000))
 }
 
 /** T+ seconds of the ladder. Frozen at haltedAt when halted. Null if it never started. */

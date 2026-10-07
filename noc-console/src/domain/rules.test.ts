@@ -2,15 +2,25 @@ import { describe, expect, it } from 'vitest'
 import type { Alert, Incident, LadderState, WatchScore } from '../api/types'
 import { LADDER_STAGES } from './constants'
 import {
+  attentionLevel,
   buildCallout,
   canOpenIncident,
   checkMemo,
   derivePriority,
+  escalationTier,
   isTypingTarget,
   ladderLabel,
   sortAlerts,
 } from './rules'
-import { attendedSec, fmtClock, ladderElapsedSec, plural, secondsToNextStage, unattendedSec } from './timing'
+import {
+  attendedSec,
+  fmtClock,
+  ladderElapsedSec,
+  plural,
+  secondsToNextStage,
+  unattendedSec,
+  unattendedStreakSec,
+} from './timing'
 
 const alert = (o: Partial<Alert>): Alert => ({
   id: 'x', siteId: 's1', cameraId: '01', severity: 1, state: 'new', title: 't',
@@ -84,6 +94,7 @@ describe('callout', () => {
 const inc = (o: Partial<Incident> = {}): Incident => ({
   id: 'i1', alertId: 'a1', siteId: 's1', cameraId: '01', openedAt: '2026-01-01T00:00:00Z',
   laneIndex: 0, ladder: ladder(), operatorOwned: false, attendedSec: 0, focusedSince: null,
+  unattendedSince: null, escalationAcked: false,
   visits: 0, noteCount: 0, siren: false, strobe: false, ...o,
 })
 function ladder(o: Partial<LadderState> = {}): LadderState {
@@ -98,6 +109,16 @@ describe('timing', () => {
     expect(attendedSec(i, t(60))).toBe(20)
     expect(unattendedSec(i, t(60))).toBe(40)
   })
+  it('the unattended streak resets on every visit, unlike the lifetime total', () => {
+    const neverVisited = inc({ unattendedSince: '2026-01-01T00:00:00Z' })
+    expect(unattendedStreakSec(neverVisited, t(90))).toBe(90)
+    const stillFocused = inc({ unattendedSince: null })
+    expect(unattendedStreakSec(stillFocused, t(90))).toBe(0)
+    // visited at t(60), left again at t(70): streak is 20s at t(90), even though
+    // this lane has been open 90s total and unattendedSec (lifetime) keeps growing.
+    const revisited = inc({ unattendedSince: '2026-01-01T00:01:10Z' })
+    expect(unattendedStreakSec(revisited, t(90))).toBe(20)
+  })
   it('counts down to the next stage and freezes when halted', () => {
     expect(secondsToNextStage(ladder({ firedStage: 0 }), t(5))).toBe(7)
     const halted = ladder({ status: 'halted', firedStage: 0, haltedAt: '2026-01-01T00:00:05Z' })
@@ -108,6 +129,23 @@ describe('timing', () => {
     expect(fmtClock(64)).toBe('1:04')
     expect(plural(1, 'still')).toBe('1 still')
     expect(plural(0, 'still')).toBe('0 stills')
+  })
+})
+
+describe('self-escalation thresholds', () => {
+  it('attentionLevel: watching below 30s, unattended 30-44s, escalating from 45s', () => {
+    expect(attentionLevel(0)).toBe('watching')
+    expect(attentionLevel(29)).toBe('watching')
+    expect(attentionLevel(30)).toBe('unattended')
+    expect(attentionLevel(44)).toBe('unattended')
+    expect(attentionLevel(45)).toBe('escalating')
+    expect(attentionLevel(600)).toBe('escalating')
+  })
+  it('escalationTier: none until 45s, warning 45-59s, critical from 60s', () => {
+    expect(escalationTier(44)).toBe('none')
+    expect(escalationTier(45)).toBe('warning')
+    expect(escalationTier(59)).toBe('warning')
+    expect(escalationTier(60)).toBe('critical')
   })
 })
 

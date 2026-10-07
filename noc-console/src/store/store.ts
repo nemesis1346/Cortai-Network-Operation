@@ -156,6 +156,7 @@ export class NocStore {
   setSiren = (id: string, on: boolean) => this.client.setSiren(id, on)
   setStrobe = (id: string, on: boolean) => this.client.setStrobe(id, on)
   acknowledgePage = (desk: number) => this.client.acknowledgePage(desk)
+  acknowledgeEscalation = (incidentId: string) => this.client.acknowledgeEscalation(incidentId)
 
   async addNote(text: string): Promise<boolean> {
     const id = this.state.server?.focusIncidentId

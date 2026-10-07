@@ -31,6 +31,8 @@ export interface NocClient {
   setStrobe(incidentId: string, on: boolean): Promise<Result<null>>
   addNote(incidentId: string, text: string): Promise<Result<null>>
   acknowledgePage(desk: number): Promise<Result<null>>
+  /** K: quiets the EscalationBar for this lane's current unattended streak without resetting its timer. */
+  acknowledgeEscalation(incidentId: string): Promise<Result<null>>
   /** Manual "Page second desk" from the lane-limit refusal. Yassine, 1 Oct: add as a third button. */
   requestDeskPage(reason: string): Promise<Result<null>>
 }

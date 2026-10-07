@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CloseoutModal } from './components/CloseoutModal'
-import { CriticalBand } from './components/CriticalBand'
+import { EscalationBar } from './components/EscalationBar'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
 import { Center, LeftRail, RightRail, VoiceStrip } from './components/Regions'
 import { ReportModal } from './components/ReportModal'
@@ -23,7 +23,7 @@ export default function App() {
     <ViewportGate>
       <div className={`shell rail-${rail ?? 'none'}`}>
         <TopBar server={server} onOpenRail={(r) => setRail(rail === r ? null : r)} />
-        <CriticalBand server={server} />
+        <EscalationBar server={server} />
         <div className="body">
           {/* DOM order = tab order: centre, right rail, left rail (audit A5). CSS places them visually. */}
           <Center server={server} />

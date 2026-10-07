@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockNocClient } from '../api/mock/MockNocClient'
 import { alertCounts } from './selectors'
 import { NocStore } from './store'
@@ -8,6 +8,16 @@ async function boot() {
   const store = new NocStore(client)
   await store.connect()
   return store
+}
+
+// Ticking (voice ladder, auto-page) runs on the client's own 1s interval,
+// started separately from connect() (main.tsx does it after connect resolves).
+// Tests that need the tick need the client itself, not just the store.
+async function bootWithClient() {
+  const client = new MockNocClient()
+  const store = new NocStore(client)
+  await store.connect()
+  return { store, client }
 }
 const server = (s: NocStore) => s.getState().server!
 
@@ -93,5 +103,75 @@ describe('store over the mock client', () => {
     await store.pageSecondDesk()
     expect(store.getState().ui.queueRefusal).toBeNull()
     expect(server(store).pages.some((p) => !p.acknowledgedAt)).toBe(true)
+  })
+})
+
+describe('self-escalation and auto-paging (v2 STATES.md §2)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a newly opened peripheral lane starts its own unattended streak at 0', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    await store.openIncident('a2')
+    const [focused, peripheral] = server(store).incidents
+    expect(focused!.unattendedSince).toBeNull()
+    expect(peripheral!.unattendedSince).not.toBeNull()
+    expect(peripheral!.escalationAcked).toBe(false)
+  })
+
+  it('auto-pages desk 3 once a lane crosses the 60s alarm threshold, not before', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    await store.openIncident('a2') // peripheral from the moment it opens
+    client.start()
+    vi.advanceTimersByTime(59_000)
+    expect(server(store).pages.length).toBe(0)
+    vi.advanceTimersByTime(2_000) // crosses 60s
+    expect(server(store).pages.some((p) => !p.acknowledgedAt)).toBe(true)
+    client.stop()
+  })
+
+  it('focusing an unattended lane resets its streak and clears any ack', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    await store.openIncident('a2')
+    client.start()
+    vi.advanceTimersByTime(45_000)
+    const id = server(store).incidents[1]!.id
+    await store.acknowledgeEscalation(id)
+    await store.requestFocus(id)
+    const inc = server(store).incidents.find((i) => i.id === id)!
+    expect(inc.unattendedSince).toBeNull()
+    expect(inc.escalationAcked).toBe(false)
+    client.stop()
+  })
+
+  it('acknowledging silences the bar for that lane without resetting the streak or blocking the auto-page', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    await store.openIncident('a2')
+    client.start()
+    vi.advanceTimersByTime(45_000)
+    const id = server(store).incidents[1]!.id
+    await store.acknowledgeEscalation(id)
+    expect(server(store).incidents.find((i) => i.id === id)!.escalationAcked).toBe(true)
+    // v2 STATES.md: ack is "escalated -> escalated", timer not reset, and the
+    // 60s auto-page is a separate side effect of the unattended state itself.
+    vi.advanceTimersByTime(16_000)
+    expect(server(store).pages.some((p) => !p.acknowledgedAt)).toBe(true)
+    client.stop()
+  })
+
+  it('refuses to acknowledge a lane that is currently focused', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    await store.acknowledgeEscalation(id)
+    expect(server(store).incidents[0]!.escalationAcked).toBe(false)
   })
 })

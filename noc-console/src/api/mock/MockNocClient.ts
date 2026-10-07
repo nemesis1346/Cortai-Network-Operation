@@ -19,9 +19,9 @@ import type {
   TranscriptSpeaker,
   WatchScore,
 } from '../types'
-import { LADDER_STAGES, MAX_LANES, MEMO_MIN_LENGTH } from '../../domain/constants'
+import { LADDER_STAGES, MAX_LANES, MEMO_MIN_LENGTH, UNATTENDED_ALARM_SEC } from '../../domain/constants'
 import { buildCallout, checkMemo } from '../../domain/rules'
-import { attendedSec, incidentAgeSec, ladderElapsedSec } from '../../domain/timing'
+import { attendedSec, incidentAgeSec, ladderElapsedSec, unattendedStreakSec } from '../../domain/timing'
 import { STAGE_SCRIPT, STILL_CAPTIONS, seedAlerts, seedEstate, seedWatch } from './data'
 
 const ok = <T>(value: T): Result<T> => ({ ok: true, value })
@@ -143,8 +143,11 @@ export class MockNocClient implements NocClient {
     }
     const incident: Incident = {
       id, alertId, siteId: alert.siteId, cameraId: alert.cameraId, openedAt: now, laneIndex, ladder,
-      operatorOwned: false, attendedSec: 0, focusedSince: null, visits: 0, noteCount: 0,
-      siren: false, strobe: false,
+      operatorOwned: false, attendedSec: 0, focusedSince: null,
+      // Starts as if just-became-unattended; setFocus below clears this the
+      // moment it actually gains focus (the common case: first open lane).
+      unattendedSince: now, escalationAcked: false,
+      visits: 0, noteCount: 0, siren: false, strobe: false,
     }
     this.snap.incidents.push(incident)
     this.setAlertState(alert, 'working')
@@ -176,6 +179,9 @@ export class MockNocClient implements NocClient {
       const held = Math.floor((nowMs - Date.parse(prev.focusedSince)) / 1000)
       prev.attendedSec += held
       prev.focusedSince = null
+      // A fresh unattended streak starts now; last streak's ack doesn't carry over.
+      prev.unattendedSince = now
+      prev.escalationAcked = false
       this.emit({ type: 'incident.upsert', incident: prev })
       this.ledger(prev, 'leave', `Operator left after ${Math.floor(held / 60)}:${String(held % 60).padStart(2, '0')} on lane`)
     }
@@ -183,6 +189,8 @@ export class MockNocClient implements NocClient {
       const next = this.snap.incidents.find((i) => i.id === incidentId)
       if (!next) return fail('NOT_FOUND', 'Incident not found')
       next.focusedSince = now
+      next.unattendedSince = null
+      next.escalationAcked = false
       next.visits += 1
       next.operatorOwned = true
       this.snap.stats.visits += 1
@@ -333,6 +341,17 @@ export class MockNocClient implements NocClient {
     return ok(null)
   }
 
+  async acknowledgeEscalation(incidentId: string): Promise<Result<null>> {
+    const inc = this.snap.incidents.find((i) => i.id === incidentId)
+    if (!inc) return fail('NOT_FOUND', 'Incident not found')
+    if (!inc.unattendedSince) return fail('INVALID_STATE', 'Lane is focused, nothing to acknowledge')
+    inc.escalationAcked = true
+    this.ledger(inc, 'action', 'Unattended escalation acknowledged')
+    this.transcript('sys', `Escalation acknowledged · ${this.siteName(inc)}`, inc.id)
+    this.emit({ type: 'incident.upsert', incident: inc })
+    return ok(null)
+  }
+
   /* ---------- simulation ---------- */
 
   private tick(): void {
@@ -382,14 +401,22 @@ export class MockNocClient implements NocClient {
     this.emit({ type: 'ladder.updated', ladder: { ...l } })
   }
 
+  /**
+   * v2 STATES.md §1/§2: the supervisor is auto-paged once ANY lane's own
+   * unattended streak reaches 60s — not when its ladder happens to reach a
+   * particular stage. Replaces the old ladder-stage-3 trigger: the two were
+   * only ever coincidentally related, and the new one is what the
+   * EscalationBar's own countdown promises ("pages in Xs unless you look").
+   */
   private maybePage(): void {
     if (this.snap.pages.some((p) => !p.acknowledgedAt)) return
-    const stalled = this.snap.incidents.filter((i) => !i.operatorOwned && i.ladder.firedStage >= 3)
+    const nowMs = Date.now()
+    const stalled = this.snap.incidents.filter((i) => unattendedStreakSec(i, nowMs) >= UNATTENDED_ALARM_SEC)
     if (!stalled.length) return
     const page: DeskPage = {
       desk: 3,
       pagedAt: new Date().toISOString(),
-      reason: `${stalled.length} incident(s) reached siren stage unattended`,
+      reason: `${stalled.length} lane(s) unattended ${UNATTENDED_ALARM_SEC}s+`,
     }
     this.snap.pages.push(page)
     this.transcript('sys', `Auto-page sent to desk 3 and on-call - ${page.reason}`)

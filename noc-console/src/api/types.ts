@@ -198,6 +198,21 @@ export interface Incident {
   attendedSec: number
   /** Anchor. Non-null while the operator is currently on this lane. */
   focusedSince: ISODate | null
+  /**
+   * Anchor for the CURRENT unattended streak — when focus most recently left
+   * this lane (or it opened without getting focus). Null while focused.
+   * Resets to a fresh value on every visit, unlike the lifetime `attendedSec`
+   * total below. Drives LaneCard's self-escalation meter and the
+   * EscalationBar (v2 STATES.md §2: notice 30s, warning 45s, alarm 60s).
+   */
+  unattendedSince: ISODate | null
+  /**
+   * K/Acknowledge quiets the EscalationBar for this streak without resetting
+   * its timer (v2 STATES.md §1: "escalated → escalated (ack): supervisor
+   * informed; timer not reset"). Cleared whenever unattendedSince changes —
+   * i.e. the next time this lane goes unattended, it needs acking again.
+   */
+  escalationAcked: boolean
   /** Number of times the operator entered the lane. */
   visits: number
   noteCount: number

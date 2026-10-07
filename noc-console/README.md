@@ -25,9 +25,11 @@ src/store/                reducer (ServerEvent -> state), NocStore (commands + U
 src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery,
                            useHoldToArm (v2's 600ms hold-to-arm gesture, pointer + keyboard)
 src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
-                           columns) + PeripheralLanes (other open lanes, right rail — a stub until
-                           Part 2's full LaneCard), Queue, camera ribbon, estate tree + watch list,
-                           voice strip, closeout/report modals, mic-confirm dialog, toasts, shortcuts
+                           columns) + PeripheralLanes/LaneCard (v2 Part 2: other open lanes, right rail
+                           — live sub-stream, priority badge, self-escalating unattended meter),
+                           EscalationBar (desk-level alarm, supersedes CriticalBand), Queue, camera
+                           ribbon, estate tree + watch list, voice strip, closeout/report modals,
+                           mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -50,5 +52,11 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   doc comment and `docs/V2-BUILD-PLAN.md`'s Part 1 notes.
 - The ladder can now resume after a halt (R key), not just halt — picks up from where it paused, not
   from 0. The mockup/v1 never had this; v2's `onResume` prop made the gap concrete.
+- Peripheral lanes self-escalate on their own unattended *streak* (time since last focus, resets on
+  every visit) — distinct from the pre-existing lifetime unattended total that feeds shift stats.
+  Notice at 30s, warning (EscalationBar) at 45s, auto-page at 60s (v2 STATES.md §2). Acknowledge (K)
+  silences one lane's bar without resetting its streak or suppressing the auto-page — both are modeled
+  as independent side effects of the unattended state, not of the ack. See `docs/V2-BUILD-PLAN.md`'s
+  Part 2 notes.
 
 

@@ -1,28 +1,49 @@
-import type { Incident, Snapshot } from '../api/types'
-import { laneLetter } from '../domain/rules'
-import { fmtClock, unattendedSec } from '../domain/timing'
+import type { Alert, Incident, Snapshot } from '../api/types'
+import { UNATTENDED_ALARM_SEC } from '../domain/constants'
+import { attentionLevel, derivePriority, laneLetter } from '../domain/rules'
+import { fmtClock, unattendedStreakSec } from '../domain/timing'
 import { useNow } from '../hooks/useNow'
 import { useStore } from '../store/context'
 import { incidentsByLane } from '../store/selectors'
+import { VideoSlot } from './VideoSlot'
 
 const LANE_ACCENT = ['lane-a', 'lane-b', 'lane-c'] as const
 
 /**
- * Minimal stand-in for the other open lanes while the Lane Workspace owns the
- * centre (Part 1). This is deliberately not yet v2's LaneCard — no unattended
- * meter, no 30/45/60s escalation, no live sub-stream thumbnail. That's Part 2.
- * Exists so 2-3 open incidents still have somewhere to go and a way back to
- * focus, not a placeholder that silently drops them.
+ * Peripheral (unfocused) lane with self-escalation (v2 COMPONENTS.md#LaneCard).
+ * Live sub-stream thumbnail, priority badge, and an unattended meter that
+ * fills toward the 60s auto-page threshold. Hover/focus reveals "Focus this
+ * lane · key" in space already reserved below the meter, so revealing it
+ * never shifts the card's height.
  */
-function PeripheralRow({ inc, alert }: { inc: Incident; alert: { title: string; siteId: string } }) {
+function LaneCard({ inc, alert }: { inc: Incident; alert: Alert }) {
   const store = useStore()
   const now = useNow()
   const accent = LANE_ACCENT[inc.laneIndex] ?? 'lane-a'
+  const streak = unattendedStreakSec(inc, now)
+  const attention = attentionLevel(streak)
+  const priority = derivePriority(alert)
+  const letter = laneLetter(inc)
+  const fill = Math.min(1, streak / UNATTENDED_ALARM_SEC) * 100
+
   return (
-    <button className={`peripheral-row ${accent}`} onClick={() => void store.requestFocus(inc.id)}>
-      <span className="lane-key" title={`Focus — key ${laneLetter(inc)}`}>{laneLetter(inc)}</span>
-      <span className="peripheral-title">{alert.title}</span>
-      <span className="peripheral-time mono">Unattended {fmtClock(unattendedSec(inc, now))}</span>
+    <button
+      className={`lane-card ${accent} attn-${attention}`}
+      onClick={() => void store.requestFocus(inc.id)}
+    >
+      <div className="lc-video">
+        <VideoSlot cameraId={inc.cameraId} tier="sub" />
+      </div>
+      <div className="lc-body">
+        <div className="lc-head">
+          <span className="lane-key">{letter}</span>
+          <span className={`pr mono`}>{priority}</span>
+          <span className="lc-title">{alert.title}</span>
+        </div>
+        <span className="lc-time mono">Unattended {fmtClock(streak)}</span>
+        <div className="lc-meter"><i style={{ width: `${fill}%` }} /></div>
+        <span className="lc-hint">Focus this lane · {letter}</span>
+      </div>
     </button>
   )
 }
@@ -40,7 +61,7 @@ export function PeripheralLanes({ server }: { server: Snapshot }) {
           others.map((inc) => {
             const alert = server.alerts.find((a) => a.id === inc.alertId)
             if (!alert) return null
-            return <PeripheralRow key={inc.id} inc={inc} alert={alert} />
+            return <LaneCard key={inc.id} inc={inc} alert={alert} />
           })
         ) : (
           <p className="empty">
