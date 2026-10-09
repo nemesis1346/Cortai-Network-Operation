@@ -13,7 +13,7 @@ the center exists.
 |---|---|---|---|---|
 | 1 | **Lane Workspace** — one focused lane fills the centre; watch (video, evidence, timeline) \| decide (risk factors, ladder, deterrents, note, close) as two columns inside it. | `Lanes.tsx`/`Lane.tsx`'s 1/2/2+mini grid | — | **Done**, 6 Oct |
 | 2 | **Lane Cards** — peripheral lanes as right-rail cards: live sub-stream, unattended meter (notice 30s / warning 45s / alarm 60s), escalation bar, A/B/C to focus. | `PeripheralLanes.tsx`'s minimal stub rows | Part 1 | **Done**, 7 Oct |
-| 3 | **Estate tree + queue adjustments** — status-dot totals (Live/Motion/Fault/Offline) replacing the camera ribbon; queue's `All`/`P1–P2` filter. | `CameraRibbon.tsx` (ribbon strip + fault list) | — (independent of 1–2) | Not started |
+| 3 | **Estate tree + queue adjustments** — status-dot totals (Live/Motion/Fault/Offline) replacing the camera ribbon; queue's `All`/`P1–P2` filter. | `CameraRibbon.tsx` (ribbon strip + fault list) | — (independent of 1–2) | **Done**, 9 Oct |
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | Not started |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | Not started |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | Not started — Halt/Resume already landed in Part 1, ahead of schedule |
@@ -82,3 +82,37 @@ intervals are born fake-clock-backed) to fast-forward through all three threshol
 auto-page firing at 60s, acknowledge falling back to the generic desk-page bar, and a re-focused lane's
 streak resetting to 0 with its ack cleared. No real bugs found this pass — the state machine behaved
 exactly as `STATES.md` specifies at every threshold on the first run.
+
+## Part 3 notes
+
+**A real conflict in the v2 package itself, resolved in Yassine's favor**: the deviations table proposes
+replacing the queue's New/Working/Held tabs with a Figma-driven filter; `OPEN-QUESTIONS.md` #4 shows the
+Figma and prototype-code disagreeing with each other on what that filter even is (Waiting/Held/Done
+today vs. All/P1–P2). Yassine's decision #4 (`DECISIONS.md`) already settled the tabs question directly
+— "keep it, add the Hold action," marked **Done** against what phase 1 already built — without
+referencing either Figma variant. Read that as closing the tabs question entirely, not as one option
+among several still open. So the `All`/`P1–P2` control here is additive: a `SegmentedControl` that
+narrows whichever tab is active, sitting below the tabs rather than replacing them. If Oleg's Figma
+shows something incompatible with this reading, worth a quick check — but it isn't a re-open of the
+Held-tab decision itself.
+
+**Flagged gap, not a judgment call**: v2's `EstateStat` wants four buckets — Live, Motion, Fault,
+Offline. `CameraStatus` only has three (`'live' | 'motion' | 'down'`), with nothing distinguishing a
+faulted-but-reachable camera from a genuinely offline one. Rather than fabricate a split with no real
+backend signal behind it, `EstateStats` renders three tiles (Live/Motion/Fault) and leaves Offline out
+entirely. Noted here and worth asking Oleg/backend whether that distinction is meant to come from the
+same `down` state with extra metadata, or is a real 4th state — this is a data-model question, not a UI
+one, so not mine to invent an answer for.
+
+**Not dropped, relocated**: the old ribbon's per-camera fault list (which camera, how long down) read as
+a second home for information the Estate tree already owns once its pip strip is gone — audit A9's "one
+place per job" argument applies here too, even though A9 itself was about the pips specifically. Moved
+the down-duration onto each camera's own row in the tree (visible once its site is expanded) rather than
+deleting it outright; the ribbon's top-level list would have been the only place `DownDuration` existed,
+and dropping it silently would have been a real feature loss the deviations table never asked for.
+
+**Verified live**: EstateStat totals matched the seed data (10 live / 2 motion / 1 fault) and the shape
+convention (circle/diamond/square, audit B10) carried over from the old pips. The down camera's row
+showed a running duration. The old `.pip`/`.faults` markup is gone from the DOM. The priority filter
+correctly narrowed New-tab rows to P1/P2 only and restored on switching back to All. Wall toggle still
+present and functional (Part 4's job to replace). No real bugs found.

@@ -27,9 +27,12 @@ src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typin
 src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
                            columns) + PeripheralLanes/LaneCard (v2 Part 2: other open lanes, right rail
                            — live sub-stream, priority badge, self-escalating unattended meter),
-                           EscalationBar (desk-level alarm, supersedes CriticalBand), Queue, camera
-                           ribbon, estate tree + watch list, voice strip, closeout/report modals,
-                           mic-confirm dialog, toasts, shortcuts
+                           EscalationBar (desk-level alarm, supersedes CriticalBand), Queue (v2 Part 3:
+                           All/P1-P2 priority filter alongside the tabs), estate tree (v2 Part 3:
+                           EstateStat totals, sole owner of per-camera status), camera wall toggle (the
+                           old ribbon's pip strip + fault list are gone, folded into the estate tree),
+                           watch list, voice strip, closeout/report modals, mic-confirm dialog, toasts,
+                           shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -58,5 +61,14 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   silences one lane's bar without resetting its streak or suppressing the auto-page — both are modeled
   as independent side effects of the unattended state, not of the ack. See `docs/V2-BUILD-PLAN.md`'s
   Part 2 notes.
+- The camera ribbon's pip strip and fault list duplicated the estate tree (audit A9) once the tree had
+  its own status dots — removed. The tree is now the sole source of per-camera status, including down
+  duration on each camera's own row. Its header gained a one-row Live/Motion/Fault totals strip; v2's
+  spec lists a 4th bucket, Offline, but `CameraStatus` has no signal to distinguish it from Fault, so it
+  isn't shown rather than faked — see `docs/V2-BUILD-PLAN.md`'s Part 3 notes.
+- The queue's New/Working/Held tabs stay as Yassine decided 1 Oct (`docs/DECISIONS.md` #4) — the v2
+  package's own Figma and prototype code disagree with each other about replacing them, so that decision
+  reads as closing the question outright. A separate All/P1–P2 segmented filter narrows whichever tab is
+  active instead of replacing the tabs.
 
 

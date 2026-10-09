@@ -244,6 +244,13 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .tab { flex: 1; height: 32px; font-size: var(--fs-body); color: var(--text-3); border-bottom: 2px solid transparent; }
 .tab[aria-selected="true"] { color: var(--text-1); border-bottom-color: var(--cyan); background: var(--panel-3); }
 .tab-n { font-size: var(--fs-micro); margin-left: 4px; }
+
+/* SegmentedControl (v2 COMPONENTS.md#SegmentedControl): narrows the active
+   tab's rows, doesn't replace the tabs above it (DECISIONS.md #4). */
+.seg { display: flex; gap: 4px; padding: var(--sp-2) var(--sp-3) 0; flex-shrink: 0; }
+.seg-opt { height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-micro); color: var(--text-3);
+  border: 1px solid var(--line-subtle); border-radius: var(--r-full); }
+.seg-opt[aria-checked="true"] { color: var(--text-1); border-color: var(--line-strong); background: var(--panel-3); }
 .refusal { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
   background: var(--amber-bg); color: var(--amber); font-size: var(--fs-body); flex-shrink: 0; }
 .refusal span { flex: 1 1 auto; min-width: 16ch; }
@@ -281,29 +288,9 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 /* ---------- camera ribbon ---------- */
 
 .cams-region { flex-shrink: 0; border-top: 1px solid var(--line); position: relative; }
-.cams-head { display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-3); height: 36px; }
+.cams-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 0 var(--sp-3); height: 36px; }
 .cams-head .hd { border: 0; padding: 0; height: auto; flex-shrink: 0; }
-.cams-sum { color: var(--text-3); font-size: var(--fs-micro); flex: 1; }
 .wall-toggle { height: 32px; font-size: var(--fs-label); flex-shrink: 0; }
-
-.strip { display: flex; flex-wrap: wrap; gap: 2px; padding: var(--sp-1) var(--sp-3) var(--sp-2); }
-.pip { position: relative; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-1); }
-.pip i { display: block; width: 8px; height: 8px; }
-.pip.live i { border-radius: 50%; background: var(--green); }
-.pip.motion i { background: var(--amber); transform: rotate(45deg); }
-.pip.down i { border-radius: 1px; background: var(--red); }
-/* Left-anchored, not centred: a centred tooltip clips off-screen for the
-   first couple of pips in the strip, which sit close to the rail's edge. */
-.pip:hover::after, .pip:focus-visible::after {
-  content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 0;
-  background: var(--panel-3); border: 1px solid var(--line-strong); padding: 4px 8px; border-radius: var(--r-2);
-  font-size: var(--fs-micro); white-space: nowrap; z-index: 30; color: var(--text-1); pointer-events: none;
-}
-
-.faults { padding: 0 var(--sp-3) var(--sp-2); display: flex; flex-direction: column; gap: 4px; }
-.fault { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-body);
-  color: var(--red); background: var(--red-bg); padding: 4px 8px; border-radius: var(--r-2); }
-.fault .mono { color: var(--text-2); font-size: var(--fs-micro); }
 
 /* Overlay covers the centre column only, lane height never changes (audit A11). */
 .center { position: relative; }
@@ -368,6 +355,18 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 
 .estate-region, .watch-region { display: flex; flex-direction: column; min-height: 0; flex: 1 1 0; }
 .estate-body, .watch-body { padding: 0; overflow-y: auto; flex: 1; }
+
+/* EstateStat (v2 COMPONENTS.md#EstateStat): dot + number on top, label below. */
+.estate-stats { display: flex; border-bottom: 1px solid var(--line-subtle); flex-shrink: 0; }
+.estat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--sp-2) 0; }
+.estat b { font-size: var(--fs-body-lg); font-weight: 600; }
+.estat span:last-child { font-size: var(--fs-micro); color: var(--text-3); }
+.estat-dot { width: 7px; height: 7px; }
+.estat-dot.live { border-radius: 50%; background: var(--green); }
+.estat-dot.motion { background: var(--amber); transform: rotate(45deg); }
+.estat-dot.down { border-radius: 1px; background: var(--red); }
+
+.cam-down-since { margin-left: auto; flex-shrink: 0; font-size: var(--fs-micro); color: var(--red); }
 
 .site { border-bottom: 1px solid var(--line-subtle); }
 .site-h { display: flex; align-items: center; gap: 7px; padding: 8px 12px; width: 100%; text-align: left; min-height: 32px; }

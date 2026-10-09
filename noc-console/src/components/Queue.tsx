@@ -4,6 +4,7 @@ import { fmtClock } from '../domain/timing'
 import { useNow } from '../hooks/useNow'
 import { useStore, useUi } from '../store/context'
 import { alertCounts, alertsForTab } from '../store/selectors'
+import type { UiState } from '../store/store'
 
 const TABS: { id: Exclude<AlertState, 'closed'>; label: string }[] = [
   { id: 'new', label: 'New' },
@@ -66,11 +67,20 @@ function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
   )
 }
 
+const PRIORITY_FILTERS: { id: UiState['queuePriorityFilter']; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'high', label: 'P1–P2' },
+]
+
 export function Queue({ server }: { server: Snapshot }) {
   const store = useStore()
   const ui = useUi()
   const counts = alertCounts(server)
-  const rows = alertsForTab(server, ui.queueTab)
+  const tabRows = alertsForTab(server, ui.queueTab)
+  const rows =
+    ui.queuePriorityFilter === 'high'
+      ? tabRows.filter((a) => derivePriority(a) === 'P1' || derivePriority(a) === 'P2')
+      : tabRows
 
   return (
     <section className="queue-region" aria-labelledby="h-queue">
@@ -86,6 +96,19 @@ export function Queue({ server }: { server: Snapshot }) {
             onClick={() => store.setQueueTab(t.id)}
           >
             {t.label} <span className="tab-n">{counts[t.id]}</span>
+          </button>
+        ))}
+      </div>
+      <div className="seg" role="radiogroup" aria-label="Filter by priority">
+        {PRIORITY_FILTERS.map((f) => (
+          <button
+            key={f.id}
+            role="radio"
+            aria-checked={ui.queuePriorityFilter === f.id}
+            className="seg-opt"
+            onClick={() => store.setQueuePriorityFilter(f.id)}
+          >
+            {f.label}
           </button>
         ))}
       </div>
@@ -105,7 +128,9 @@ export function Queue({ server }: { server: Snapshot }) {
             return <QueueRow key={a.id} alert={a} lane={inc ? laneLetter(inc) : null} />
           })
         ) : (
-          <p className="empty">{EMPTY_COPY[ui.queueTab]}</p>
+          <p className="empty">
+            {tabRows.length ? 'No P1–P2 alerts in this tab.' : EMPTY_COPY[ui.queueTab]}
+          </p>
         )}
       </div>
     </section>

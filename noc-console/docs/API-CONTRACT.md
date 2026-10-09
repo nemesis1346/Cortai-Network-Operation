@@ -213,3 +213,36 @@ Auth model (OTP flow still to arrive from Yassine), the `LaneState` machine (`fr
 shapes, and whether the camera wall stays open during an incident. All blocked on the Lane Workspace /
 camera-wall Figma call, not on anything in this document. See `DECISIONS.md` for the full status of
 every item from the sign-off memo.
+
+## 13. Camera status: Fault vs. Offline (open gap, v2 Part 3)
+
+v2's `EstateStat` component (`docs-v2/docs/COMPONENTS.md`) shows four per-estate totals: Live, Motion,
+Fault, Offline. `CameraStatus` (`types.ts`) only has three values — `'live' | 'motion' | 'down'` — with
+no field distinguishing a camera that's live but reporting a fault from one that's genuinely
+unreachable. `src/components/EstateTree.tsx` renders three totals (Live/Motion/Fault) rather than
+inventing a fourth bucket with no backend signal behind it.
+
+Question for Oleg/backend before this can be built for real: is Offline a real 4th `CameraStatus` value
+(camera unreachable at the network level), or is it `down` plus a reason code (e.g. `downReason:
+'fault' | 'offline'`)? Either is a small, additive change to `types.ts` once answered — not blocking
+anything else in the build plan.
+
+## 14. What changed in code, continued
+
+**9 Oct — v2 Part 3 (estate tree + queue adjustments):**
+- `src/components/EstateTree.tsx`: added the `EstateStats` totals row (Live/Motion/Fault — see §13) and
+  per-camera down duration (moved from the old ribbon's fault list, not dropped).
+- `src/components/CameraRibbon.tsx`: pip strip and fault list removed (duplicated the estate tree, audit
+  A9); kept the wall toggle + overlay, which Part 4 replaces outright.
+- `src/components/Queue.tsx`: added an `All`/`P1–P2` `SegmentedControl` below the existing New/Working/
+  Held tabs — additive, not a replacement; see `DECISIONS.md` #4 and `V2-BUILD-PLAN.md`'s Part 3 notes
+  for why the tabs themselves don't change.
+- `src/store/store.ts`: new `UiState.queuePriorityFilter` ('all' | 'high') + `setQueuePriorityFilter`.
+- `src/store/selectors.ts#cameraSummary`: reused for the new totals row (previously computed inline in
+  `CameraRibbon.tsx`, now has one real caller).
+
+Verified live: totals matched seed data (10 live / 2 motion / 1 fault); down camera's row showed a live
+countdown; old `.pip`/`.faults` markup confirmed absent from the DOM; priority filter narrowed New-tab
+rows to P1/P2 only and restored correctly on switching back. No real bugs found.
+
+Typecheck clean, 29/29 tests passing throughout.

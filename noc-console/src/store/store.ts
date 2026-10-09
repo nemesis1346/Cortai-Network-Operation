@@ -5,6 +5,10 @@ import { applyEvent } from './reducer'
 /** Client-only UI state. Never sent to the server. */
 export interface UiState {
   queueTab: Exclude<AlertState, 'closed'>
+  /** v2 deviations#4: segmented filter alongside the tabs, narrows the active
+   * tab's rows to P1-P2 without replacing the New/Working/Held tabs Yassine
+   * asked to keep (DECISIONS.md #4). */
+  queuePriorityFilter: 'all' | 'high'
   wallOpen: boolean
   /** Refusal shown where the action happened (audit A20), persists until dismissed. */
   queueRefusal: string | null
@@ -24,6 +28,7 @@ export interface AppState {
 
 const initialUi: UiState = {
   queueTab: 'new',
+  queuePriorityFilter: 'all',
   wallOpen: false,
   queueRefusal: null,
   micConfirm: null,
@@ -196,6 +201,9 @@ export class NocStore {
 
   setQueueTab(tab: UiState['queueTab']): void {
     this.patchUi({ queueTab: tab })
+  }
+  setQueuePriorityFilter(filter: UiState['queuePriorityFilter']): void {
+    this.patchUi({ queuePriorityFilter: filter })
   }
   toggleWall(): void {
     const s = this.state.server
