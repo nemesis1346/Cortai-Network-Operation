@@ -13,7 +13,13 @@ export type ISODate = string
 
 /* ---------- Estate ---------- */
 
-export type CameraStatus = 'live' | 'motion' | 'down'
+/**
+ * v2 STATES.md §7: fault = degraded stream, still live, flagged to
+ * maintenance; offline = no signal, speaker/deterrents may be unavailable.
+ * Two distinct failure modes, not one 'down' bucket (see API-CONTRACT.md §13
+ * for how this replaced the single-state phase 1 model).
+ */
+export type CameraStatus = 'live' | 'motion' | 'fault' | 'offline'
 
 /**
  * Health of an actively-watched stream, distinct from Camera.status (which
@@ -31,7 +37,7 @@ export interface Camera {
   status: CameraStatus
   /** Privacy mask active on this camera. */
   masked?: boolean
-  /** When status became 'down'. Present only if down. */
+  /** When status became 'fault' or 'offline'. Present only then. */
   downSince?: ISODate
   /** Current stream health. Absent when nothing is actively decoding it. */
   signal?: VideoSignal

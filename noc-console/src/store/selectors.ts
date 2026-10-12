@@ -1,4 +1,4 @@
-import type { Alert, Camera, Incident, LedgerEvent, Site, Snapshot, WatchScore } from '../api/types'
+import type { Alert, Camera, CameraStatus, Incident, LedgerEvent, Site, Snapshot, WatchScore } from '../api/types'
 import { escalationTier, sortAlerts } from '../domain/rules'
 import { unattendedStreakSec } from '../domain/timing'
 
@@ -19,10 +19,26 @@ export const cameraOf = (s: Snapshot, id: string): Camera | undefined => s.camer
 export const watchOf = (s: Snapshot, siteId: string): WatchScore | undefined =>
   s.watch.find((w) => w.siteId === siteId)
 
+/** Exclusive partition by exact status (v2 STATES.md §7) — every camera counts once. */
 export const cameraSummary = (s: Snapshot) => {
-  const down = s.cameras.filter((c) => c.status === 'down').length
-  const motion = s.cameras.filter((c) => c.status === 'motion').length
-  return { total: s.cameras.length, live: s.cameras.length - down, motion, down }
+  const by = (st: CameraStatus) => s.cameras.filter((c) => c.status === st).length
+  return {
+    total: s.cameras.length,
+    live: by('live'),
+    motion: by('motion'),
+    fault: by('fault'),
+    offline: by('offline'),
+  }
+}
+
+/** v2 COMPONENTS.md#CameraWall: "Order: motion, fault, offline, then live." */
+export const CAMERA_WALL_ORDER: CameraStatus[] = ['motion', 'fault', 'offline', 'live']
+
+export function camerasForWall(s: Snapshot, filter: 'all' | CameraStatus): Camera[] {
+  const sorted = [...s.cameras].sort(
+    (a, b) => CAMERA_WALL_ORDER.indexOf(a.status) - CAMERA_WALL_ORDER.indexOf(b.status),
+  )
+  return filter === 'all' ? sorted : sorted.filter((c) => c.status === filter)
 }
 
 /** Unacknowledged desk page — the EscalationBar's fallback when no specific

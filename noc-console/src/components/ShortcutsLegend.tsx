@@ -7,6 +7,7 @@ const SHORTCUTS: [string, string][] = [
   ['H', 'Halt the voice ladder on the focused lane'],
   ['R', 'Resume a halted ladder, from where it paused'],
   ['K', 'Acknowledge the unattended-lane escalation bar'],
+  ['W', 'Open or close the camera wall'],
   ['Esc', 'Close the open dialog, keeping any memo you typed'],
   ['?', 'Show this legend'],
 ]

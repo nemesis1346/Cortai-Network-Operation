@@ -14,7 +14,7 @@ the center exists.
 | 1 | **Lane Workspace** — one focused lane fills the centre; watch (video, evidence, timeline) \| decide (risk factors, ladder, deterrents, note, close) as two columns inside it. | `Lanes.tsx`/`Lane.tsx`'s 1/2/2+mini grid | — | **Done**, 6 Oct |
 | 2 | **Lane Cards** — peripheral lanes as right-rail cards: live sub-stream, unattended meter (notice 30s / warning 45s / alarm 60s), escalation bar, A/B/C to focus. | `PeripheralLanes.tsx`'s minimal stub rows | Part 1 | **Done**, 7 Oct |
 | 3 | **Estate tree + queue adjustments** — status-dot totals (Live/Motion/Fault/Offline) replacing the camera ribbon; queue's `All`/`P1–P2` filter. | `CameraRibbon.tsx` (ribbon strip + fault list) | — (independent of 1–2) | **Done**, 9 Oct |
-| 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | Not started |
+| 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | Not started |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | Not started — Halt/Resume already landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | Not started |
@@ -104,6 +104,10 @@ entirely. Noted here and worth asking Oleg/backend whether that distinction is m
 same `down` state with extra metadata, or is a real 4th state — this is a data-model question, not a UI
 one, so not mine to invent an answer for.
 
+*Resolved in Part 4*: `STATES.md` §7 turned out to already define both precisely ("fault = degraded
+stream, flagged to maintenance; offline = no signal, speaker/deterrents may be unavailable") — missed
+when first scanning the docs for Part 3. `CameraStatus` is now a real 4-value type; see Part 4 notes.
+
 **Not dropped, relocated**: the old ribbon's per-camera fault list (which camera, how long down) read as
 a second home for information the Estate tree already owns once its pip strip is gone — audit A9's "one
 place per job" argument applies here too, even though A9 itself was about the pips specifically. Moved
@@ -116,3 +120,49 @@ convention (circle/diamond/square, audit B10) carried over from the old pips. Th
 showed a running duration. The old `.pip`/`.faults` markup is gone from the DOM. The priority filter
 correctly narrowed New-tab rows to P1/P2 only and restored on switching back to All. Wall toggle still
 present and functional (Part 4's job to replace). No real bugs found.
+
+## Part 4 notes
+
+**Shipping a Figma-pending item**: the wall staying open while incidents are open is one of the two
+items Yassine wanted to see on Figma before deciding (`DECISIONS.md`, 5 Oct). That call isn't happening
+in a structured way, and the 5 Oct note already says to build ahead of it — this is where that risk
+actually lands. `toggleWall()` no longer refuses while lanes are open; the overlay only ever covered the
+centre column (audit A11), so lane cards, the EscalationBar and their timers are untouched underneath
+it. Worth a confirmation from Marco before this reaches real use, per the standing note on both
+Figma-pending items.
+
+**`CameraStatus` grew a real 4th value**: `CameraWall`'s own filter tabs (`'all'|'live'|'motion'|'fault'
+|'offline'`, v2 COMPONENTS.md) can't be built faithfully on 3 states — "Order: motion, fault, offline,
+then live" only makes sense if those are 4 distinct, mutually exclusive buckets. `STATES.md` §7 (missed
+during Part 3's scan, worth noting for next time) defines both precisely, so this isn't invented: fault =
+degraded stream, still live, flagged to maintenance; offline = no signal, speaker/deterrents may be
+unavailable. `types.ts#CameraStatus` is now `'live' | 'motion' | 'fault' | 'offline'`; seed data split
+the one existing down camera into one of each so both paths are actually exercised, not just typed.
+
+**Byproduct: `cameraSummary` became an honest exclusive partition.** It used to return `live: total -
+down`, which *included* motion cameras (carried over from the phase-1 ribbon's summary line). The Wall's
+tab counts need a strict partition — a camera can't be in two tabs — so `live` now means exactly
+`status === 'live'`, matching `motion`/`fault`/`offline`. This changes what the EstateStat row and
+TopBar's health pill show (e.g. "7 Live" where it used to overlap into "10 Live"); TopBar's own `cams.live
++ cams.motion` reasoning wasn't affected since it already computed "working" as open-incidents-plus-
+motion separately, and its health pill now does `total - fault - offline` inline rather than reading a
+pre-blended `live` field. The old "N camera fault" pill is now "N camera issue(s)" since it covers two
+real failure modes, not one.
+
+**Camera view without an incident is deliberately not built**: v2 deviations#13 says a wall tile for a
+camera with no owning lane should open "a camera view" — that screen is Part 7 (new-in-v2, purely
+additive), not built yet. Building a one-off partial version of it here to serve just this click would be
+scope creep beyond what Part 4 replaces. `CameraTile` says so via a toast instead of a dead click; a
+tile for a camera an open lane *does* own focuses that lane and closes the wall (the one interaction this
+part can actually complete end to end).
+
+**Real bug found and fixed during verification, not a test artifact**: the Camera Wall overlay rendered
+as a squashed strip at the bottom of the screen instead of covering the centre column — `.wall-overlay`'s
+`position: absolute; inset: 0` was resolving against `.cams-region` (also `position: relative`, a
+leftover from the old pip-tooltip system removed in Part 3), not `.center`, because `.wall-overlay` is a
+DOM child of `.cams-region`, which sits nearer in the ancestor chain. Fixed by dropping the now-vestigial
+`position: relative` off `.cams-region`. Caught via a screenshot during live verification — the "Camera
+wall" header and tabs rendered, but no grid, and a scripted tile click failed because the tile was being
+occluded by footer/centre elements outside the (mis-sized) overlay. Re-verified after the fix: full-size
+grid, correct tile order, filter tabs, lane-focus click, unowned-camera toast, and the wall staying open
+with an incident active, all confirmed with a clean screenshot.

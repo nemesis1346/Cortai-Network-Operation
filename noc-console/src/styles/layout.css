@@ -287,26 +287,32 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 
 /* ---------- camera ribbon ---------- */
 
-.cams-region { flex-shrink: 0; border-top: 1px solid var(--line); position: relative; }
+.cams-region { flex-shrink: 0; border-top: 1px solid var(--line); }
 .cams-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 0 var(--sp-3); height: 36px; }
 .cams-head .hd { border: 0; padding: 0; height: auto; flex-shrink: 0; }
 .wall-toggle { height: 32px; font-size: var(--fs-label); flex-shrink: 0; }
 
-/* Overlay covers the centre column only, lane height never changes (audit A11). */
+/* Overlay covers the centre column only, lane height never changes (audit A11).
+   Stays available with incidents open (v2 deviations#13) — this is purely a
+   visual layer over .center, so lanes underneath (right rail, EscalationBar)
+   are untouched and keep counting unattended time. */
 .center { position: relative; }
 .wall-overlay { position: absolute; inset: 0; z-index: 40; background: var(--ink);
   display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); }
-.wall-head { display: flex; align-items: center; gap: var(--sp-3); }
-.wall-head b { flex: 1; font-size: var(--fs-h); }
-.wall-head span { color: var(--text-2); font-size: var(--fs-body); }
+/* Header + tabs fixed, only the grid scrolls (v2 COMPONENTS.md#CameraWall). */
+.wall-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); flex-shrink: 0; }
+.wall-head b { font-size: var(--fs-h); flex-shrink: 0; }
+.wall-head .seg { padding: 0; flex: 1 1 auto; }
 .wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-3);
   overflow-y: auto; flex: 1; align-content: start; }
 .tile { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-2); overflow: hidden;
-  background: #060809; border: 1px solid var(--amber); }
-.tile-badge { position: absolute; top: 6px; left: 6px; font-size: var(--fs-micro); background: var(--amber-bg);
-  color: var(--amber); padding: 2px 6px; border-radius: var(--r-1); }
+  background: #060809; border: 1px solid var(--line-subtle); text-align: left; }
+.tile:hover, .tile:focus-visible { border-color: var(--line-strong); }
+.tile .tile-dot { position: absolute; top: 8px; left: 8px; }
+.tile-lane { position: absolute; top: 6px; right: 6px; font-size: var(--fs-micro); padding: 1px 6px;
+  border-radius: var(--r-full); background: var(--cyan-bg); color: var(--cyan); }
 .tile-l { position: absolute; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; gap: 2px;
-  padding: 6px; background: linear-gradient(transparent, rgba(6, 9, 13, .85)); font-size: var(--fs-micro); }
+  padding: 6px; background: linear-gradient(transparent, rgba(6, 9, 13, .85)); font-size: var(--fs-micro); color: var(--text-1); }
 
 /* ---------- note field (reused inside the workspace's decide column) ---------- */
 
@@ -364,7 +370,9 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .estat-dot { width: 7px; height: 7px; }
 .estat-dot.live { border-radius: 50%; background: var(--green); }
 .estat-dot.motion { background: var(--amber); transform: rotate(45deg); }
-.estat-dot.down { border-radius: 1px; background: var(--red); }
+.estat-dot.fault { border-radius: 1px; background: var(--red); }
+.estat-dot.offline { width: 0; height: 0; background: transparent;
+  border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-bottom: 6px solid var(--text-3); }
 
 .cam-down-since { margin-left: auto; flex-shrink: 0; font-size: var(--fs-micro); color: var(--red); }
 
@@ -379,10 +387,12 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .cams { padding-bottom: 4px; }
 .cam-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 26px; font-size: var(--fs-body); color: var(--text-2); min-height: 28px; }
 .cam-row:hover { background: var(--panel-2); color: var(--text-1); }
-.cam-row .dot { width: 8px; height: 8px; flex-shrink: 0; }
-.cam-row .dot.live { border-radius: 50%; background: var(--green); }
-.cam-row .dot.motion { background: var(--amber); transform: rotate(45deg); }
-.cam-row .dot.down { border-radius: 1px; background: var(--red); }
+.cam-row .dot, .tile-dot { width: 8px; height: 8px; flex-shrink: 0; }
+.cam-row .dot.live, .tile-dot.live { border-radius: 50%; background: var(--green); }
+.cam-row .dot.motion, .tile-dot.motion { background: var(--amber); transform: rotate(45deg); }
+.cam-row .dot.fault, .tile-dot.fault { border-radius: 1px; background: var(--red); }
+.cam-row .dot.offline, .tile-dot.offline { width: 0; height: 0; background: transparent;
+  border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 7px solid var(--text-3); }
 .cam-row .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mask-tag { font-size: var(--fs-micro); color: var(--text-3); }
 

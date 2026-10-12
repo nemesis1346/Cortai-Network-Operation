@@ -6,7 +6,7 @@ const ago = (now: number, sec: number): ISODate => new Date(now - sec * 1000).to
 type CamSeed = [id: string, name: string, status: Camera['status'], masked?: boolean]
 const SITE_SEEDS: { id: string; name: string; locality: string; cams: CamSeed[]; ladderAtSec?: number[] }[] = [
   { id: 's1', name: '138 Hope St N', locality: 'Port Hope', cams: [['07', 'Gate / driveway', 'motion'], ['08', 'Rear yard', 'live'], ['09', 'Loading door', 'live']] },
-  { id: 's2', name: '434 N Rivermede', locality: 'Concord', cams: [['12', 'Loading bay', 'live'], ['19', 'Rear elevation', 'down'], ['20', 'Unit corridor', 'live']] },
+  { id: 's2', name: '434 N Rivermede', locality: 'Concord', cams: [['12', 'Loading bay', 'fault'], ['19', 'Rear elevation', 'offline'], ['20', 'Unit corridor', 'live']] },
   // Faster procedure at this site (repeat-plate pattern on the watch list): overrides
   // the global 0/12/30/45s default. Yassine, 1 Oct: ladder timings come from the site.
   { id: 's3', name: '3 Tait Street', locality: 'Huntsville', cams: [['05', 'Parking', 'motion'], ['06', 'Lobby', 'live']], ladderAtSec: [0, 8, 20, 35] },
@@ -21,14 +21,16 @@ export function seedEstate(now: number): { sites: Site[]; cameras: Camera[] } {
     const ladderStages = s.ladderAtSec?.map((atSec, i) => ({ ...LADDER_STAGES[i]!, atSec }))
     sites.push({ id: s.id, name: s.name, locality: s.locality, cameraIds: s.cams.map((c) => c[0]), ladderStages })
     for (const [id, name, status, masked] of s.cams) {
+      const down = status === 'fault' || status === 'offline'
       cameras.push({
         id, siteId: s.id, name, status, masked,
-        downSince: status === 'down' ? ago(now, 298) : undefined,
+        downSince: down ? ago(now, 298) : undefined,
         // Phase 1 has no real stream: 'live' + a placeholder latency stand in
         // for what go2rtc will report, wired through end to end so the UI
-        // has somewhere real to read them from already.
-        signal: status === 'down' ? undefined : 'live',
-        latencyMs: status === 'down' ? undefined : 120,
+        // has somewhere real to read them from already. fault = degraded but
+        // still decoding; offline = no signal at all (v2 STATES.md §7).
+        signal: status === 'fault' ? 'degraded' : status === 'offline' ? 'lost' : 'live',
+        latencyMs: status === 'fault' ? 480 : status === 'offline' ? undefined : 120,
       })
     }
   }

@@ -14,6 +14,7 @@ function Clock() {
 export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (r: 'left' | 'right') => void }) {
   const store = useStore()
   const cams = cameraSummary(server)
+  const down = cams.fault + cams.offline
   const open = openCount(server.incidents)
   const decoding = open + cams.motion
   return (
@@ -36,9 +37,9 @@ export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (
       </div>
 
       <div className="pills">
-        <span className="health">{cams.live} / {cams.total} cameras</span>
+        <span className="health">{cams.total - down} / {cams.total} cameras</span>
         <span className="pill warn">Decode {decoding} of {cams.total}</span>
-        {cams.down > 0 && <span className="pill crit">{cams.down} camera fault</span>}
+        {down > 0 && <span className="pill crit">{down} camera issue{down > 1 ? 's' : ''}</span>}
         <button className="btn shortcuts-btn" onClick={() => store.setShortcutsOpen(true)}>
           Keyboard shortcuts
         </button>

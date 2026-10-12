@@ -29,10 +29,10 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            — live sub-stream, priority badge, self-escalating unattended meter),
                            EscalationBar (desk-level alarm, supersedes CriticalBand), Queue (v2 Part 3:
                            All/P1-P2 priority filter alongside the tabs), estate tree (v2 Part 3:
-                           EstateStat totals, sole owner of per-camera status), camera wall toggle (the
-                           old ribbon's pip strip + fault list are gone, folded into the estate tree),
-                           watch list, voice strip, closeout/report modals, mic-confirm dialog, toasts,
-                           shortcuts
+                           EstateStat totals, sole owner of per-camera status), CameraWall (v2 Part 4:
+                           status-tab filter, stays open while incidents are open, supersedes
+                           CameraRibbon), watch list, voice strip, closeout/report modals, mic-confirm
+                           dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -63,12 +63,20 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   Part 2 notes.
 - The camera ribbon's pip strip and fault list duplicated the estate tree (audit A9) once the tree had
   its own status dots — removed. The tree is now the sole source of per-camera status, including down
-  duration on each camera's own row. Its header gained a one-row Live/Motion/Fault totals strip; v2's
-  spec lists a 4th bucket, Offline, but `CameraStatus` has no signal to distinguish it from Fault, so it
-  isn't shown rather than faked — see `docs/V2-BUILD-PLAN.md`'s Part 3 notes.
+  duration on each camera's own row. Its header shows a one-row Live/Motion/Fault/Offline totals strip.
 - The queue's New/Working/Held tabs stay as Yassine decided 1 Oct (`docs/DECISIONS.md` #4) — the v2
   package's own Figma and prototype code disagree with each other about replacing them, so that decision
   reads as closing the question outright. A separate All/P1–P2 segmented filter narrows whichever tab is
   active instead of replacing the tabs.
+- `CameraStatus` is `'live' | 'motion' | 'fault' | 'offline'` — fault (degraded stream, still live) and
+  offline (no signal) are genuinely different per v2 STATES.md §7, not a UI distinction invented on top
+  of one `down` bucket. `cameraSummary` is an exclusive partition of all four; nothing overlaps.
+- The camera wall stays open while incidents are open (v2 deviations#13) — one of the two items Yassine
+  wanted to see on Figma first before this got built anyway (`docs/DECISIONS.md`, 5 Oct). The overlay
+  only ever covered the centre column (audit A11), so lane cards and the EscalationBar keep running
+  underneath it. A wall tile for a camera an open lane owns focuses that lane; a tile for a camera with
+  no lane says camera view isn't built yet (that screen is Part 7) rather than doing nothing silently.
+  See `docs/V2-BUILD-PLAN.md`'s Part 4 notes, including a real CSS positioning bug found and fixed
+  during live verification.
 
 

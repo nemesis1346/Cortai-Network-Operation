@@ -209,23 +209,22 @@ Typecheck clean, 20/20 tests passing throughout.
 ## 12. Explicitly not started
 
 Auth model (OTP flow still to arrive from Yassine), the `LaneState` machine (`free`/`focused`/
-`peripheral`/`escalated`/`closing`/`handoff-requested`/`closed`), take-next/raise-incident command
-shapes, and whether the camera wall stays open during an incident. All blocked on the Lane Workspace /
-camera-wall Figma call, not on anything in this document. See `DECISIONS.md` for the full status of
-every item from the sign-off memo.
+`peripheral`/`escalated`/`closing`/`handoff-requested`/`closed`), and take-next/raise-incident command
+shapes. Blocked on the Lane Workspace / camera-wall Figma call, not on anything in this document. (The
+wall staying open during an incident shipped in Part 4 ahead of that call, per `DECISIONS.md`'s 5 Oct
+note — flagged there as carrying build risk until Marco confirms it with Oleg.) See `DECISIONS.md` for
+the full status of every item from the sign-off memo.
 
-## 13. Camera status: Fault vs. Offline (open gap, v2 Part 3)
+## 13. Camera status: Fault vs. Offline (resolved, v2 Part 4)
 
-v2's `EstateStat` component (`docs-v2/docs/COMPONENTS.md`) shows four per-estate totals: Live, Motion,
-Fault, Offline. `CameraStatus` (`types.ts`) only has three values — `'live' | 'motion' | 'down'` — with
-no field distinguishing a camera that's live but reporting a fault from one that's genuinely
-unreachable. `src/components/EstateTree.tsx` renders three totals (Live/Motion/Fault) rather than
-inventing a fourth bucket with no backend signal behind it.
-
-Question for Oleg/backend before this can be built for real: is Offline a real 4th `CameraStatus` value
-(camera unreachable at the network level), or is it `down` plus a reason code (e.g. `downReason:
-'fault' | 'offline'`)? Either is a small, additive change to `types.ts` once answered — not blocking
-anything else in the build plan.
+~~v2's `EstateStat` component shows four per-estate totals: Live, Motion, Fault, Offline. `CameraStatus`
+only has three values, with no field distinguishing fault from offline.~~ **Resolved 12 Oct**:
+`STATES.md` §7 (missed in the initial Part 3 scan) already defines both — fault = degraded stream, still
+live, flagged to maintenance; offline = no signal, speaker/deterrents may be unavailable. Needed for real
+once `CameraWall`'s own filter tabs (`'all'|'live'|'motion'|'fault'|'offline'`) made the distinction
+unavoidable, not optional. `CameraStatus` is now `'live' | 'motion' | 'fault' | 'offline'`; seed data
+splits the one down camera (`434 N Rivermede`) into one of each (`12` fault via `signal: 'degraded'`,
+`19` offline via `signal: 'lost'`) so both paths are exercised, not just typed.
 
 ## 14. What changed in code, continued
 
@@ -244,5 +243,30 @@ anything else in the build plan.
 Verified live: totals matched seed data (10 live / 2 motion / 1 fault); down camera's row showed a live
 countdown; old `.pip`/`.faults` markup confirmed absent from the DOM; priority filter narrowed New-tab
 rows to P1/P2 only and restored correctly on switching back. No real bugs found.
+
+Typecheck clean, 29/29 tests passing throughout.
+
+**12 Oct — v2 Part 4 (camera wall):**
+- `src/api/types.ts`: `CameraStatus` is now `'live' | 'motion' | 'fault' | 'offline'` — see §13.
+- `src/api/mock/data.ts`: seed camera `12` set to `fault` (`signal: 'degraded'`), `19` to `offline`
+  (`signal: 'lost'`), proving both paths instead of one blended `down`.
+- `src/store/selectors.ts#cameraSummary`: now an exclusive partition (`live` no longer includes motion
+  cameras — see `V2-BUILD-PLAN.md`'s Part 4 "byproduct" note). New `camerasForWall` +
+  `CAMERA_WALL_ORDER` for the wall's "motion, fault, offline, then live" grouping.
+- `src/components/TopBar.tsx`: health pill computes `total - fault - offline` inline instead of reading
+  a pre-blended `live`; "N camera fault" relabelled "N camera issue(s)" (now covers two failure modes).
+- `src/components/EstateTree.tsx`: `EstateStats` gained its 4th tile (Offline) for free once the type did.
+- `src/components/CameraWall.tsx` (new): replaces `CameraRibbon.tsx` outright. Status-tab filter with
+  counts, `CameraTile` opens the owning lane (and closes the wall) or toasts that camera view without an
+  incident isn't built yet (Part 7). `W` hotkey added (`useHotkeys.ts`, `ShortcutsLegend.tsx`).
+- `src/store/store.ts#toggleWall`: no longer refuses while incidents are open (deviations#13); new
+  `UiState.wallFilter` + `setWallFilter`.
+- `src/styles/layout.css`: `.cams-region`'s vestigial `position: relative` removed — see the real-bug note
+  in `V2-BUILD-PLAN.md`'s Part 4 notes, this was silently breaking the wall overlay's positioning.
+
+Verified live: wall opens with an incident active (no lock), tab counts and "motion, fault, offline,
+live" tile ordering matched seed data exactly, filtering by status worked, clicking a lane-owned tile
+focused that lane and closed the wall, clicking an unowned camera's tile toasted instead of doing
+nothing. One real bug found and fixed before this passed — see `V2-BUILD-PLAN.md`'s Part 4 notes.
 
 Typecheck clean, 29/29 tests passing throughout.

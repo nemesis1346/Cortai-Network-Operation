@@ -1,5 +1,5 @@
 import type { Snapshot } from '../api/types'
-import { CameraRibbon } from './CameraRibbon'
+import { CameraWall } from './CameraWall'
 import { EstateTree } from './EstateTree'
 import { Lanes } from './Lanes'
 import { PeripheralLanes } from './PeripheralLanes'
@@ -17,7 +17,7 @@ export const LeftRail = ({ server }: { server: Snapshot }) => (
 export const Center = ({ server }: { server: Snapshot }) => (
   <main className="col center" aria-label="Incidents">
     <Lanes server={server} />
-    <CameraRibbon server={server} />
+    <CameraWall server={server} />
   </main>
 )
 

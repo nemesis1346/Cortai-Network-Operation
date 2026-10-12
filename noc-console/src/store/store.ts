@@ -1,5 +1,5 @@
 import type { NocClient } from '../api/client'
-import type { AlertState, IncidentReport, NextStepId, Snapshot } from '../api/types'
+import type { AlertState, CameraStatus, IncidentReport, NextStepId, Snapshot } from '../api/types'
 import { applyEvent } from './reducer'
 
 /** Client-only UI state. Never sent to the server. */
@@ -10,6 +10,8 @@ export interface UiState {
    * asked to keep (DECISIONS.md #4). */
   queuePriorityFilter: 'all' | 'high'
   wallOpen: boolean
+  /** v2 COMPONENTS.md#CameraWall: segmented tabs with counts, 'all' default. */
+  wallFilter: 'all' | CameraStatus
   /** Refusal shown where the action happened (audit A20), persists until dismissed. */
   queueRefusal: string | null
   /** Waiting for the operator to confirm moving the mic. Replaces window.confirm (C7). */
@@ -30,6 +32,7 @@ const initialUi: UiState = {
   queueTab: 'new',
   queuePriorityFilter: 'all',
   wallOpen: false,
+  wallFilter: 'all',
   queueRefusal: null,
   micConfirm: null,
   closingIncidentId: null,
@@ -205,13 +208,19 @@ export class NocStore {
   setQueuePriorityFilter(filter: UiState['queuePriorityFilter']): void {
     this.patchUi({ queuePriorityFilter: filter })
   }
+  /**
+   * v2 deviations#13: the wall stays available while incidents are open — the
+   * brief's "locked while open" is gone. Open lanes keep counting unattended
+   * time underneath it (the overlay only ever covered the centre column, not
+   * the lane cards or EscalationBar). One of the two items Yassine wanted to
+   * see on Figma first (DECISIONS.md, 5 Oct); building it per the deviations
+   * table since the call isn't happening in a structured way.
+   */
   toggleWall(): void {
-    const s = this.state.server
-    if (s && s.incidents.length) {
-      this.toast('Wall stays collapsed while incidents are open. Close an incident to open it.', 'warn')
-      return
-    }
     this.patchUi({ wallOpen: !this.state.ui.wallOpen })
+  }
+  setWallFilter(filter: UiState['wallFilter']): void {
+    this.patchUi({ wallFilter: filter })
   }
   setShortcutsOpen(open: boolean): void {
     this.patchUi({ shortcutsOpen: open })

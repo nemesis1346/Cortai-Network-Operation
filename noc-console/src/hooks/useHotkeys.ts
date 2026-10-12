@@ -6,8 +6,9 @@ import type { NocStore } from '../store/store'
 /**
  * A/B/C focus a lane, M toggles the mic on the focused lane, H halts its ladder,
  * R resumes it, K acknowledges whichever lane's unattended escalation is
- * currently showing in the EscalationBar (v2 UI-SPEC.md §6). Never fires while
- * typing (audit C1), with a modifier held, or while a modal is open.
+ * currently showing in the EscalationBar, W toggles the camera wall (v2
+ * UI-SPEC.md §6). Never fires while typing (audit C1), with a modifier held,
+ * or while a modal is open.
  */
 export function useHotkeys(store: NocStore): void {
   useEffect(() => {
@@ -32,6 +33,10 @@ export function useHotkeys(store: NocStore): void {
       }
       if (key === '?') {
         store.setShortcutsOpen(true)
+        return
+      }
+      if (key === 'w') {
+        store.toggleWall()
         return
       }
       const focus = server.focusIncidentId
