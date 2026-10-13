@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { CloseoutModal } from './components/CloseoutModal'
 import { EscalationBar } from './components/EscalationBar'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
-import { Center, LeftRail, RightRail, VoiceStrip } from './components/Regions'
+import { Center, LeftRail, RightRail } from './components/Regions'
 import { ReportModal } from './components/ReportModal'
 import { ShortcutsLegend } from './components/ShortcutsLegend'
+import { StatusBar } from './components/StatusBar'
 import { Toasts } from './components/Toasts'
 import { TopBar } from './components/TopBar'
 import { ViewportGate } from './components/ViewportGate'
@@ -30,7 +31,7 @@ export default function App() {
           <RightRail server={server} />
           <LeftRail server={server} />
         </div>
-        <VoiceStrip server={server} />
+        <StatusBar server={server} />
       </div>
       <CloseoutModal />
       <ReportModal />

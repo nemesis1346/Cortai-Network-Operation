@@ -1,40 +1,43 @@
 import { useState, type CSSProperties } from 'react'
-import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot } from '../api/types'
+import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot, TranscriptSpeaker } from '../api/types'
 import { ladderLabel, laneLetter, ledgerKindLabel } from '../domain/rules'
 import { attendedSec, fmtClock, incidentAgeSec, plural, secondsToNextStage, unattendedSec } from '../domain/timing'
 import { useHoldToArm } from '../hooks/useHoldToArm'
+import { useHoldToTalk } from '../hooks/useHoldToTalk'
 import { useNow } from '../hooks/useNow'
 import { useStore } from '../store/context'
 import { groupLedger } from '../store/selectors'
+import { CommsDock } from './CommsDock'
 import { VideoSlot } from './VideoSlot'
 
 const LANE_ACCENT = ['lane-a', 'lane-b', 'lane-c'] as const
 const WEIGHT_BARS: Record<RiskFactorWeight, number> = { high: 3, medium: 2, low: 1 }
+const SPEAKER_LABEL: Record<TranscriptSpeaker, string> = { sys: 'System', ai: 'AI', op: 'Operator' }
 
 function shortSite(name: string): string {
   return name.replace(/^\d+\s/, '').split(',')[0] ?? name
 }
 
 /**
- * The focused incident, full width: watch (video, evidence, timeline) on the
- * left, decide (why this alert, response ladder, deterrents, note, close) on
- * the right — replacing the old 1/2/2+mini grid entirely (v2 LaneWorkspace,
- * COMPONENTS.md §Lane). The "focused lane collapses to 210px" bug class
- * (audit C3/C4/A12) can't recur here by construction: there is only ever one
- * workspace, sized by the layout, never by array position.
+ * The focused incident, full width: watch (video, evidence, timeline/
+ * transcript) on the left, decide (why this alert, response ladder, comms
+ * dock, deterrents, note, close) on the right — replacing the old 1/2/2+mini
+ * grid entirely (v2 LaneWorkspace, COMPONENTS.md §Lane). The "focused lane
+ * collapses to 210px" bug class (audit C3/C4/A12) can't recur here by
+ * construction: there is only ever one workspace, sized by the layout, never
+ * by array position.
  *
- * Judgment calls made here, not a direct spec read — worth checking with
- * Oleg if they come up: (1) evidence and timeline are stacked in the watch
- * column rather than tabbed, since Tabs' third sibling (Transcript) belongs
- * to the Comms Dock that doesn't exist yet (Part 5) — may convert to tabs
- * once it does. (2) Two-way talk stays a click-toggle, not real push-to-talk,
- * for the same reason: true hold-to-talk is entangled with the Comms Dock's
- * mic placement, which this part deliberately doesn't touch.
+ * Two Part 1 deferrals resolved here now that the Comms Dock exists: Timeline
+ * and Transcript are tabs (Evidence stays always-visible, it's compact and
+ * useful at a glance — the build plan only calls out Transcript becoming a
+ * tab, not Evidence); Two-way talk is real hold-to-talk (`useHoldToTalk`,
+ * STATES.md §4), not a click-toggle.
  */
 export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Alert; server: Snapshot }) {
   const store = useStore()
   const now = useNow()
   const [noteDraft, setNoteDraft] = useState('')
+  const [watchTab, setWatchTab] = useState<'timeline' | 'transcript'>('timeline')
 
   const letter = laneLetter(inc)
   const accent = LANE_ACCENT[inc.laneIndex] ?? 'lane-a'
@@ -53,9 +56,16 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const thumbs = allEvidence.slice(-7).reverse()
   const ledger = server.ledger.filter((e) => e.incidentId === inc.id)
   const timelineGroups = groupLedger(ledger)
+  const transcript = server.transcript.filter((l) => l.incidentId === inc.id)
 
   const sirenHold = useHoldToArm(() => void store.setSiren(inc.id, true))
   const strobeHold = useHoldToArm(() => void store.setStrobe(inc.id, true))
+  // Press claims the mic only if some other lane doesn't already have it bound
+  // here — re-pressing while already bound just re-asserts "talking" locally,
+  // it must never fall into toggleMic's release branch (that's M's job).
+  const talkHold = useHoldToTalk(() => {
+    if (server.micOwnerIncidentId !== inc.id) void store.toggleMic(inc.id)
+  })
 
   const submitNote = () => {
     const v = noteDraft.trim()
@@ -116,23 +126,51 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
           </div>
 
           <div className="ws-timeline">
-            <h3 className="ws-sub-h">Timeline</h3>
-            <div className="ledger">
-              {timelineGroups.length ? (
-                timelineGroups.map((g) =>
-                  g.kind === 'stills' ? (
-                    <StillsRow key={g.events[0]!.id} events={g.events} />
-                  ) : (
-                    <div key={g.event.id} className={`led ${g.event.kind}`}>
-                      <span className="ts mono">{g.event.at.slice(11, 19)}</span>
-                      <span><i>{ledgerKindLabel(g.event.kind)}</i>{g.event.text}</span>
-                    </div>
-                  ),
-                )
-              ) : (
-                <p className="empty">No events yet.</p>
-              )}
+            <div className="tabs ws-tabs" role="tablist">
+              {(['timeline', 'transcript'] as const).map((t) => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={watchTab === t}
+                  className="tab"
+                  onClick={() => setWatchTab(t)}
+                >
+                  {t === 'timeline' ? 'Timeline' : 'Transcript'}
+                </button>
+              ))}
             </div>
+            {watchTab === 'timeline' ? (
+              <div className="ledger">
+                {timelineGroups.length ? (
+                  timelineGroups.map((g) =>
+                    g.kind === 'stills' ? (
+                      <StillsRow key={g.events[0]!.id} events={g.events} />
+                    ) : (
+                      <div key={g.event.id} className={`led ${g.event.kind}`}>
+                        <span className="ts mono">{g.event.at.slice(11, 19)}</span>
+                        <span><i>{ledgerKindLabel(g.event.kind)}</i>{g.event.text}</span>
+                      </div>
+                    ),
+                  )
+                ) : (
+                  <p className="empty">No events yet.</p>
+                )}
+              </div>
+            ) : (
+              <div className="ledger" role="log" aria-live="polite">
+                {transcript.length ? (
+                  transcript.map((l) => (
+                    <div className={`tline ${l.speaker}`} key={l.id}>
+                      <span className="ts mono">{l.at.slice(11, 19)}</span>
+                      <span className="who">{SPEAKER_LABEL[l.speaker]}</span>
+                      <span className="tx">{l.text}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="empty">No transcript yet.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -185,10 +223,18 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
             </div>
           </div>
 
+          <CommsDock inc={inc} server={server} onOpenTranscript={() => setWatchTab('transcript')} />
+
           <div className="ws-actions">
-            <button className="action-btn action-talk" aria-pressed={micOn} onClick={() => void store.toggleMic(inc.id)}>
-              <span className="action-verb">{micOn ? 'On air' : 'Two-way talk'}</span>
-              <span className="action-state">{micOn ? 'end call' : 'tap to start'}</span>
+            <button
+              className={`action-btn action-talk ${talkHold.pressing ? 'talking' : ''}`}
+              aria-pressed={micOn}
+              {...talkHold.handlers}
+            >
+              <span className="action-verb">Two-way talk</span>
+              <span className="action-state">
+                {talkHold.pressing ? 'talking — release to stop' : micOn ? 'mic open · hold to talk' : 'hold to talk'}
+              </span>
               <kbd>Space</kbd>
             </button>
             <button

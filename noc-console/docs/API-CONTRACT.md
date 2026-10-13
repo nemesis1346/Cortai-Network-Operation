@@ -270,3 +270,34 @@ focused that lane and closed the wall, clicking an unowned camera's tile toasted
 nothing. One real bug found and fixed before this passed — see `V2-BUILD-PLAN.md`'s Part 4 notes.
 
 Typecheck clean, 29/29 tests passing throughout.
+
+**13 Oct — v2 Part 5 (comms dock):**
+- `src/hooks/useHoldToTalk.ts` (new): press/release with no arm delay — distinct from `useHoldToArm`'s
+  600ms. `pressing` is local-only UI state; the caller decides whether a press needs a server call.
+- `src/components/LaneWorkspace.tsx`: Talk button's press calls `store.toggleMic(inc.id)` only when this
+  lane doesn't already own the mic — never falls into `toggleMic`'s release branch on a press, which
+  would have turned "hold to talk" into "every other press hangs up." `M` key and CommsDock's own "Move
+  mic here" both still call `toggleMic` unconditionally, unchanged. Watch column gained a Timeline/
+  Transcript tab pair (`watchTab` local state); Evidence stays always-visible, not a tab.
+- `src/components/CommsDock.tsx` (new): mic routing ("Mic open to this lane" / "Mic open to Lane X" +
+  Move mic here / "Mic unbound" + Move mic here), waveform, last transcript line for this incident
+  (click switches the watch column to its Transcript tab). Lives inside `LaneWorkspace`, not global.
+- `src/components/StatusBar.tsx` (new), replacing `src/components/VoiceStrip.tsx` (deleted) as the
+  global footer: just Mic (which lane, or Unbound) and Sirens (which lanes, or None running).
+- `src/components/Lanes.tsx`: `LaneWorkspace` now takes `key={focused.id}` — see the real-bug note in
+  `V2-BUILD-PLAN.md`'s Part 5 notes.
+- `src/styles/layout.css`: `.voice`/`.voice-strip`/`.vs-*`/`.transcript`/`.jump-latest` removed; added
+  `.status-bar`/`.sb-item`, `.comms-dock`/`.cd-*`, `.ws-tabs`, `.action-talk.talking`. `.tline`/`.wave`/
+  `.speaker-dot` kept, now shared between the transcript tab panel and CommsDock.
+
+Verified live: old voice-strip DOM confirmed gone; StatusBar reads "Mic: Unbound · Sirens: None running"
+with nothing open; pressing Talk shows the talking-pulse immediately and CommsDock updates to "Mic open
+to this lane" with the live transcript line; releasing keeps the binding (`aria-pressed` stays true);
+re-pressing while already bound adds no duplicate transcript line; switching lanes while the mic is
+bound elsewhere still correctly opens the pre-existing MicConfirmDialog rather than switching (unrelated,
+unchanged flow — confirmed not regressed). One real bug found and fixed: `LaneWorkspace` had no `key`,
+so a lane switch didn't remount it and local state (note draft, now also the watch-tab) leaked across
+lanes; fixed with `key={focused.id}`, re-verified clean.
+
+Typecheck clean, 29/29 tests passing throughout (no new domain/store logic this part — the mic-claim
+guard is component-level, same precedent as the queue/wall filters in Parts 3-4).

@@ -23,16 +23,19 @@ src/api/mock/             MockNocClient (simulates ladder, evidence, paging) + s
 src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping
 src/store/                reducer (ServerEvent -> state), NocStore (commands + UI state), selectors, React context
 src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery,
-                           useHoldToArm (v2's 600ms hold-to-arm gesture, pointer + keyboard)
+                           useHoldToArm (v2's 600ms hold-to-arm gesture, siren/strobe), useHoldToTalk
+                           (v2's no-delay press/release gesture, two-way talk)
 src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
-                           columns) + PeripheralLanes/LaneCard (v2 Part 2: other open lanes, right rail
-                           — live sub-stream, priority badge, self-escalating unattended meter),
-                           EscalationBar (desk-level alarm, supersedes CriticalBand), Queue (v2 Part 3:
-                           All/P1-P2 priority filter alongside the tabs), estate tree (v2 Part 3:
-                           EstateStat totals, sole owner of per-camera status), CameraWall (v2 Part 4:
-                           status-tab filter, stays open while incidents are open, supersedes
-                           CameraRibbon), watch list, voice strip, closeout/report modals, mic-confirm
-                           dialog, toasts, shortcuts
+                           columns; v2 Part 5: Timeline/Transcript tabs, CommsDock) + PeripheralLanes/
+                           LaneCard (v2 Part 2: other open lanes, right rail — live sub-stream, priority
+                           badge, self-escalating unattended meter), EscalationBar (desk-level alarm,
+                           supersedes CriticalBand), Queue (v2 Part 3: All/P1-P2 priority filter
+                           alongside the tabs), estate tree (v2 Part 3: EstateStat totals, sole owner of
+                           per-camera status), CameraWall (v2 Part 4: status-tab filter, stays open
+                           while incidents are open, supersedes CameraRibbon), CommsDock (v2 Part 5:
+                           mic routing + waveform + last line, inside the focused lane), StatusBar (v2
+                           Part 5: global mic/sirens summary, supersedes VoiceStrip), watch list,
+                           closeout/report modals, mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -44,7 +47,7 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
 - Queue rank is lexicographic: computed priority P1–P4 (severity × inside-the-line, never hand-set —
   `domain/rules.ts#derivePriority`), then watch index, then age. Changed 2 Oct per Yassine's decision;
   see `docs/DECISIONS.md`.
-- The voice strip has no ladder mini-status panel. The brief lists one, but the approved audit (A9) found it
+- No ladder mini-status panel in the footer. The brief lists one, but the approved audit (A9) found it
   duplicated each lane's own ladder row under different wording and told us to remove it — the audit wins
   where it conflicts with the brief, per the standing decision on this project.
 - No native `window.confirm()`/`alert()` anywhere (mic hand-off, discard-memo, wall-lock refusal all use
@@ -78,5 +81,19 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   no lane says camera view isn't built yet (that screen is Part 7) rather than doing nothing silently.
   See `docs/V2-BUILD-PLAN.md`'s Part 4 notes, including a real CSS positioning bug found and fixed
   during live verification.
+- The global voice strip footer is gone, split into two per v2 deviations#5: `CommsDock` (mic routing,
+  waveform, last transcript line, "Move mic here") lives inside the focused lane now; `StatusBar`
+  (just Mic + Sirens) stays as a minimal global footer so a siren on a lane you're not looking at is
+  never invisible. Transcript is a Timeline/Transcript tab pair in the watch column, scoped per incident
+  — not a third "Notes" tab, since the note field needs to stay a persistent, directly-reachable input
+  (`N` jumps to it per UI-SPEC.md) rather than something hidden behind a tab.
+- Two-way talk is real hold-to-talk (`useHoldToTalk`, no arm delay, unlike siren/strobe's 600ms) instead
+  of a click-toggle — press claims the mic if this lane doesn't already have it, release just stops the
+  local "talking" indicator without dropping the binding (a real PTT radio doesn't change channel on
+  release). `M` still toggles bind/release outright, unchanged.
+- `LaneWorkspace` now gets `key={focused.id}` in `Lanes.tsx` — without it, local state (note draft,
+  which watch-tab is open) silently survived a lane switch instead of resetting. A real bug since Part
+  1, caught once there was a second piece of local state to make it obvious. See `V2-BUILD-PLAN.md`'s
+  Part 5 notes.
 
 

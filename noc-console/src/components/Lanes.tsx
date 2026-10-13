@@ -26,5 +26,9 @@ export function Lanes({ server }: { server: Snapshot }) {
   const alert = server.alerts.find((a) => a.id === focused.alertId)
   if (!alert) return null
 
-  return <LaneWorkspace inc={focused} alert={alert} server={server} />
+  // key=inc.id: without it, LaneWorkspace's local state (note draft, which
+  // watch tab is open, hold-to-talk/arm press state) survives a lane switch
+  // instead of resetting — a real latent bug since Part 1, now more visible
+  // with more local state added. Force a remount per incident instead.
+  return <LaneWorkspace key={focused.id} inc={focused} alert={alert} server={server} />
 }

@@ -15,18 +15,18 @@ the center exists.
 | 2 | **Lane Cards** — peripheral lanes as right-rail cards: live sub-stream, unattended meter (notice 30s / warning 45s / alarm 60s), escalation bar, A/B/C to focus. | `PeripheralLanes.tsx`'s minimal stub rows | Part 1 | **Done**, 7 Oct |
 | 3 | **Estate tree + queue adjustments** — status-dot totals (Live/Motion/Fault/Offline) replacing the camera ribbon; queue's `All`/`P1–P2` filter. | `CameraRibbon.tsx` (ribbon strip + fault list) | — (independent of 1–2) | **Done**, 9 Oct |
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
-| 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | Not started |
+| 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | Not started — Halt/Resume already landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | Not started |
 
 ## Part 1 notes
 
 **Judgment calls made, not a direct spec read** — worth checking with Oleg if they come up:
-- Evidence and timeline are stacked in the watch column rather than tabbed. Tabs' third sibling,
-  Transcript, belongs to the Comms Dock (Part 5), which doesn't exist yet — may convert to tabs once it
-  does, or may not if stacked reads fine in practice.
-- Two-way talk stays a click-toggle, not real push-to-talk. True hold-to-talk is entangled with the
-  Comms Dock's mic placement, deliberately out of this part's scope.
+- ~~Evidence and timeline are stacked in the watch column rather than tabbed.~~ **Resolved in Part 5**:
+  Timeline and Transcript are now tabs; Evidence stays always-visible (compact, and the build plan only
+  ever called out Transcript becoming a tab).
+- ~~Two-way talk stays a click-toggle, not real push-to-talk.~~ **Resolved in Part 5**: real hold-to-talk,
+  `useHoldToTalk`, once the Comms Dock existed to give the mic-routing concept somewhere to live.
 - Risk-factor weights (high/medium/low) for the existing six seed alerts are my own read of each
   alert's chips, not sourced from Figma — reasonable, but worth Oleg's eyes if the weighting ever
   matters for something downstream.
@@ -166,3 +166,55 @@ wall" header and tabs rendered, but no grid, and a scripted tile click failed be
 occluded by footer/centre elements outside the (mis-sized) overlay. Re-verified after the fix: full-size
 grid, correct tile order, filter tabs, lane-focus click, unowned-camera toast, and the wall staying open
 with an incident active, all confirmed with a clean screenshot.
+
+## Part 5 notes
+
+**Resolves two Part 1 deferrals, not just builds something new**: Timeline/Transcript tabs and real
+hold-to-talk were both explicitly left for "once the Comms Dock exists" — see the struck-through items
+above. Worth noting for future parts: deferrals like this are easy to lose track of once the part that
+was blocking them ships; grepping the build plan for the blocking part's name before starting it is
+cheap insurance.
+
+**Hold-to-talk's start/stop had to be designed, not just read off STATES.md**: the spec says "hold Space
+/ hold button, release" with no arming delay (unlike siren/strobe's 600ms — confirmed by its *absence*
+from Talk-down's row in the Deterrents table, Section 4). But the existing `toggleMic` command is a
+genuine toggle (bind if free, release if owned-by-me), which doesn't map cleanly onto "press always
+means talk, never means hang up" — a real radio's PTT release doesn't drop the channel. Resolution,
+with zero backend changes: the Talk button's press handler calls `toggleMic` only when this lane doesn't
+already own the mic (claims it, same as before); release is purely local UI state, never touches the
+server. The M key and CommsDock's "Move mic here" button still call `toggleMic` unconditionally, so M
+keeps its existing, already-documented toggle behavior (open/close) as the one remaining explicit-release
+affordance. `useHoldToTalk` (new hook) has no arm delay or progress fill, unlike `useHoldToArm` — a
+genuinely different gesture, not a renamed copy.
+
+**StatusBar wasn't in the one-line Part 5 description, but is still this part's job**: the deviations
+table's full text for this row says the old voice strip splits into *two* replacements — Comms Dock
+(per-lane, rich) and "Status bar shows mic and running sirens" (global, minimal). Built both; leaving
+the global one out would mean a siren running on a lane you've stepped away from becomes invisible the
+moment you're not looking at that specific lane, which the audit's whole throughline (EscalationBar,
+LaneCard meters) argues against. No other build-plan part owns "Status bar."
+
+**Judgment call — Notes is not a third tab**: v2 COMPONENTS.md's generic Tabs example says "Timeline ·
+Transcript · Notes," but that phrase turns out to describe `RecordModal`'s tabs (a Part 7 sealed-record
+view), not necessarily this lane's live tabs — confirmed by `UI-SPEC.md`'s `N` shortcut ("Jump to note
+field"), which only makes sense if the note field stays a persistent, always-reachable input rather than
+hidden behind a tab click. Kept the note field exactly where it was.
+
+**Real bug found and fixed, not a test artifact**: `LaneWorkspace` was rendered with no `key` prop in
+`Lanes.tsx`, so React never remounted it on a lane switch — local state (note draft, and now also which
+watch-tab is open) silently carried over to whatever lane you switched to next. Existed since Part 1;
+only became obvious now that there's a second piece of local state (`watchTab`) to leak alongside the
+note draft. Fixed with `key={focused.id}`. Verified live: typed a note into Lane A, switched to Lane B
+cold (no mic bound, so no confirm dialog in the way) — note field and watch-tab both reset correctly:
+empty field, Timeline selected. A first verification attempt looked like the fix had failed, since the
+note text was still showing after pressing `B` — turned out the mic *was* bound to Lane A at that point,
+so `requestFocus` correctly opened the mic-confirm dialog instead of switching focus at all (existing,
+correct, unrelated behavior); re-tested without binding the mic first and the fix held.
+
+**Verified live**: old `.voice-strip`/`.vs-*` DOM confirmed gone; `StatusBar` renders "Mic: Unbound ·
+Sirens: None running" with no incident open; pressing Talk shows the `.talking` pulse immediately,
+`aria-pressed` flips true, CommsDock updates to "Mic open to this lane" with the live transcript line,
+StatusBar's Mic field updates to the lane letter; releasing clears the pulse but keeps the binding
+(`aria-pressed` stays true); re-pressing while already bound adds no duplicate transcript line; the
+MicConfirmDialog flow (pre-existing, untouched) still correctly gates a focus switch while the mic is
+bound elsewhere.
