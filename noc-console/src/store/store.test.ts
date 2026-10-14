@@ -175,3 +175,87 @@ describe('self-escalation and auto-paging (v2 STATES.md §2)', () => {
     expect(server(store).incidents[0]!.escalationAcked).toBe(false)
   })
 })
+
+describe('named ladder: Talk-down / Siren / Keyholder / Dispatch (v2 STATES.md §3)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('starts armed, not running — nothing fires before 30s', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    expect(server(store).incidents[0]!.ladder.status).toBe('armed')
+    client.start()
+    vi.advanceTimersByTime(29_000)
+    expect(server(store).incidents[0]!.ladder.firedStage).toBe(-1)
+    expect(server(store).incidents[0]!.ladder.status).toBe('armed')
+    client.stop()
+  })
+
+  it('Talk-down fires at 30s and flips the ladder to running', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    client.start()
+    vi.advanceTimersByTime(30_000)
+    const l = server(store).incidents[0]!.ladder
+    expect(l.firedStage).toBe(0)
+    expect(l.status).toBe('running')
+    client.stop()
+  })
+
+  it('Siren auto-arms at 45s without halting the ladder', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    client.start()
+    vi.advanceTimersByTime(45_000)
+    const inc = server(store).incidents[0]!
+    expect(inc.siren).toBe(true)
+    expect(inc.ladder.status).toBe('running') // not 'halted' — the ladder armed it, not the operator
+    expect(inc.ladder.firedStage).toBe(1)
+    client.stop()
+  })
+
+  it('Dispatch never fires on its own, even well past 60s', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    client.start()
+    vi.advanceTimersByTime(120_000)
+    const l = server(store).incidents[0]!.ladder
+    expect(l.firedStage).toBe(2) // Keyholder, the last automatic stage
+    expect(l.status).toBe('running') // still running, not 'complete' — no auto-dispatch
+    client.stop()
+  })
+
+  it('confirmDispatch is available any time, not gated on Keyholder having fired', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    expect(server(store).incidents[0]!.ladder.firedStage).toBe(-1)
+    await store.confirmDispatch(id)
+    const l = server(store).incidents[0]!.ladder
+    expect(l.firedStage).toBe(3)
+    expect(l.status).toBe('complete')
+  })
+
+  it('confirmDispatch works even on a suppressed ladder — suppression stops the automation, not the operator', async () => {
+    const store = await boot()
+    await store.openIncident('a3') // seeded with a suppressedReason
+    const id = server(store).incidents[0]!.id
+    expect(server(store).incidents[0]!.ladder.status).toBe('suppressed')
+    await store.confirmDispatch(id)
+    expect(server(store).incidents[0]!.ladder.status).toBe('complete')
+  })
+
+  it('a peripheral lane reaching Keyholder shows a toast naming the lane', async () => {
+    const { store, client } = await bootWithClient()
+    await store.openIncident('a1')
+    await store.openIncident('a2') // peripheral — a1 keeps focus
+    client.start()
+    vi.advanceTimersByTime(60_000)
+    expect(store.getState().ui.toast?.text).toMatch(/Lane B ladder reached Keyholder/)
+    client.stop()
+  })
+})

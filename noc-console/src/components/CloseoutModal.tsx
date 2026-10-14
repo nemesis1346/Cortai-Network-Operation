@@ -150,7 +150,11 @@ export function CloseoutModal() {
             <div><span>Attended / unattended</span>
               <b className="mono">{fmtClock(attendedSec(inc, now))} / {fmtClock(unattendedSec(inc, now))}</b></div>
             <div><span>Operator visits</span><b className="mono">{inc.visits}</b></div>
-            <div><span>Voice stages played</span><b className="mono">{inc.ladder.firedStage + 1} of 4</b></div>
+            <div><span>Ladder reached</span>
+              <b className="mono">
+                {inc.ladder.firedStage >= 0 ? inc.ladder.stages[inc.ladder.firedStage]?.name : 'Not started'}
+              </b>
+            </div>
             <div><span>Stills captured</span><b className="mono">{evidenceCount}</b></div>
             <div><span>Notes filed</span><b className="mono">{notesCount}</b></div>
           </div>

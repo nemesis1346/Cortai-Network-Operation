@@ -120,10 +120,14 @@ describe('timing', () => {
     expect(unattendedStreakSec(revisited, t(90))).toBe(20)
   })
   it('counts down to the next stage and freezes when halted', () => {
-    expect(secondsToNextStage(ladder({ firedStage: 0 }), t(5))).toBe(7)
+    // Talk-down fired (atSec 30), next is Siren at atSec 45.
+    expect(secondsToNextStage(ladder({ firedStage: 0 }), t(5))).toBe(40)
     const halted = ladder({ status: 'halted', firedStage: 0, haltedAt: '2026-01-01T00:00:05Z' })
     expect(ladderElapsedSec(halted, t(500))).toBe(5)
     expect(secondsToNextStage(halted, t(500))).toBeNull()
+  })
+  it('has no countdown once only Dispatch is left — it has no atSec, never automatic', () => {
+    expect(secondsToNextStage(ladder({ firedStage: 2 }), t(65))).toBeNull()
   })
   it('formats', () => {
     expect(fmtClock(64)).toBe('1:04')

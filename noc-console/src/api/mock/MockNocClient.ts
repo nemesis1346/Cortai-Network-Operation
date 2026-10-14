@@ -22,7 +22,7 @@ import type {
 import { LADDER_STAGES, MAX_LANES, MEMO_MIN_LENGTH, UNATTENDED_ALARM_SEC } from '../../domain/constants'
 import { buildCallout, checkMemo } from '../../domain/rules'
 import { attendedSec, incidentAgeSec, ladderElapsedSec, unattendedStreakSec } from '../../domain/timing'
-import { STAGE_SCRIPT, STILL_CAPTIONS, seedAlerts, seedEstate, seedWatch } from './data'
+import { STILL_CAPTIONS, seedAlerts, seedEstate, seedWatch } from './data'
 
 const ok = <T>(value: T): Result<T> => ({ ok: true, value })
 const fail = (code: ApiError['code'], message: string, extra?: Partial<ApiError>): Result<never> => ({
@@ -135,7 +135,8 @@ export class MockNocClient implements NocClient {
     const site = this.snap.sites.find((s) => s.id === alert.siteId)
     const ladder: LadderState = {
       incidentId: id,
-      status: suppressed ? 'suppressed' : 'running',
+      // 'armed': counting toward Talk-down (stage 0), not yet running it.
+      status: suppressed ? 'suppressed' : 'armed',
       stages: site?.ladderStages ?? LADDER_STAGES,
       firedStage: -1,
       startedAt: suppressed ? undefined : now,
@@ -361,37 +362,78 @@ export class MockNocClient implements NocClient {
       if (age === 2 || (age > 0 && age % 9 === 0)) this.capture(inc)
 
       const l = inc.ladder
-      if (l.status !== 'running') continue
+      if (l.status !== 'running' && l.status !== 'armed') continue
       const t = ladderElapsedSec(l, nowMs) ?? 0
       for (const s of l.stages) {
-        if (t >= s.atSec && l.firedStage < s.index) this.fireStage(inc, s.index)
+        const { atSec, index } = s
+        if (atSec === undefined || index === 3) continue // Dispatch: never on a timer, see confirmDispatch()
+        if (t >= atSec && l.firedStage < index) this.fireStage(inc, index)
       }
     }
     this.maybePage()
   }
 
-  private fireStage(inc: Incident, index: 0 | 1 | 2 | 3): void {
+  /**
+   * Talk-down/Siren/Keyholder only (0-2) — Dispatch (3) never fires through
+   * here, see confirmDispatch(). v2 STATES.md §3's entry side effects: Siren
+   * auto-arms (if not already on, and without halting the ladder the way the
+   * operator's own setSiren() does — this is the ladder acting, not an
+   * override); Keyholder queues a call, no AI speech.
+   */
+  private fireStage(inc: Incident, index: 0 | 1 | 2): void {
     const l = inc.ladder
     l.firedStage = index
+    if (l.status === 'armed') l.status = 'running'
     const alert = this.snap.alerts.find((a) => a.id === inc.alertId)
-    const text = index === 1 ? buildCallout(alert?.subject) : (STAGE_SCRIPT[index] ?? '')
     const focused = this.snap.focusIncidentId === inc.id
-    if (index === 3) {
-      this.transcript('sys', 'Siren engaged · 8s', inc.id)
-      l.status = 'complete'
+    const stageName = l.stages[index]?.name ?? ''
+
+    if (index === 0) {
+      this.transcript('ai', buildCallout(alert?.subject), inc.id)
+      if (!inc.operatorOwned) this.speaker({ mode: 'ai', label: `AI · ${this.siteName(inc)}` })
+    } else if (index === 1) {
+      if (!inc.siren) {
+        inc.siren = true
+        this.transcript('sys', `Siren ON · ${this.siteName(inc)} (ladder stage 2)`, inc.id)
+        this.capture(inc, { description: 'Siren engaged - subject reaction frame', kind: 'face' })
+        this.emit({ type: 'incident.upsert', incident: inc })
+      }
+    } else {
+      this.transcript('sys', `Keyholder call queued · ${this.siteName(inc)}`, inc.id)
     }
-    this.transcript('ai', text, inc.id)
-    this.ledger(inc, 'voice', `Stage ${index + 1} played · ${l.stages[index]?.name}${focused ? ' (operator present)' : ' (unattended)'}`)
-    if (!inc.operatorOwned) {
-      this.speaker({ mode: index === 3 ? 'human' : 'ai', label: `${index === 3 ? 'Siren' : 'AI'} · ${this.siteName(inc)}` })
-    }
-    if (index === 3) this.transcript('sys', `Ladder complete · ${this.siteName(inc)} · clip and plate packaged`, inc.id)
+
+    this.ledger(inc, 'voice', `Stage ${index + 1} played · ${stageName}${focused ? ' (operator present)' : ' (unattended)'}`)
     this.emit({ type: 'ladder.updated', ladder: { ...l } })
+  }
+
+  /**
+   * v2 STATES.md §3: Dispatch "waits for Confirm dispatch; never automatic."
+   * Available any time the ladder isn't already complete — not gated on
+   * Keyholder having fired (so the operator can jump straight to it for a
+   * P1 without waiting out the automated stages) and not blocked by
+   * suppression either (see the guard below).
+   */
+  async confirmDispatch(incidentId: string): Promise<Result<null>> {
+    const inc = this.snap.incidents.find((i) => i.id === incidentId)
+    if (!inc) return fail('NOT_FOUND', 'Incident not found')
+    const l = inc.ladder
+    // Available even when suppressed — that only stops the automated stages,
+    // not the operator's own judgment call (setSiren/setStrobe have no
+    // ladder-status guard at all; this follows the same discipline).
+    if (l.status === 'complete') {
+      return fail('INVALID_STATE', 'Ladder already complete')
+    }
+    l.firedStage = 3
+    l.status = 'complete'
+    this.transcript('sys', `Dispatch confirmed · ${this.siteName(inc)} · police notified`, inc.id)
+    this.ledger(inc, 'voice', `Stage 4 confirmed · ${l.stages[3]?.name ?? 'Dispatch'}`)
+    this.emit({ type: 'ladder.updated', ladder: { ...l } })
+    return ok(null)
   }
 
   private haltLadderInternal(inc: Incident, reason: string): void {
     const l = inc.ladder
-    if (l.status !== 'running') return
+    if (l.status !== 'running' && l.status !== 'armed') return
     l.status = 'halted'
     l.haltedAt = new Date().toISOString()
     l.haltReason = reason

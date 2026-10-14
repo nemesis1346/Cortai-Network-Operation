@@ -38,13 +38,15 @@ export function ladderElapsedSec(l: LadderState, nowMs: number): number | null {
   return Math.max(0, Math.floor((end - ms(l.startedAt)) / 1000))
 }
 
-/** Seconds until the next stage, or null when nothing is pending. */
+/** Seconds until the next timed stage, or null when nothing is pending
+ * automatically (includes once only Dispatch is left — it has no atSec,
+ * "never automatic", v2 STATES.md §3). */
 export function secondsToNextStage(l: LadderState, nowMs: number): number | null {
   if (l.status !== 'running' && l.status !== 'armed') return null
   const t = ladderElapsedSec(l, nowMs)
   if (t === null) return null
-  const next = l.stages.find((s) => s.index > l.firedStage)
-  return next ? Math.max(0, next.atSec - t) : null
+  const next = l.stages.find((s) => s.index > l.firedStage && s.atSec !== undefined)
+  return next ? Math.max(0, next.atSec! - t) : null
 }
 
 export function fmtClock(totalSec: number): string {

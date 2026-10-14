@@ -16,9 +16,16 @@ export const UNATTENDED_NOTICE_SEC = 30
 export const UNATTENDED_WARNING_SEC = 45
 export const UNATTENDED_ALARM_SEC = 60
 
+/**
+ * v2 STATES.md §3. Durations line up with the unattended self-escalation
+ * clock on purpose (UNATTENDED_NOTICE/WARNING/ALARM_SEC above) — the ladder
+ * doesn't start talking until the lane itself starts reading as unattended.
+ * Dispatch has no atSec: "never automatic", confirmed by the operator only
+ * (`NocClient.confirmDispatch`), available any time, not gated on Keyholder.
+ */
 export const LADDER_STAGES: LadderStageDef[] = [
-  { index: 0, name: 'Announcement', atSec: 0 },
-  { index: 1, name: 'Descriptive callout', atSec: 12 },
-  { index: 2, name: 'Final warning', atSec: 30 },
-  { index: 3, name: 'Siren, then hold', atSec: 45 },
+  { index: 0, name: 'Talk-down', atSec: UNATTENDED_NOTICE_SEC },
+  { index: 1, name: 'Siren', atSec: UNATTENDED_WARNING_SEC },
+  { index: 2, name: 'Keyholder', atSec: UNATTENDED_ALARM_SEC },
+  { index: 3, name: 'Dispatch' },
 ]

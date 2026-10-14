@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot, TranscriptSpeaker } from '../api/types'
-import { ladderLabel, laneLetter, ledgerKindLabel } from '../domain/rules'
+import { derivePriority, ladderLabel, laneLetter, ledgerKindLabel } from '../domain/rules'
 import { attendedSec, fmtClock, incidentAgeSec, plural, secondsToNextStage, unattendedSec } from '../domain/timing'
 import { useHoldToArm } from '../hooks/useHoldToArm'
 import { useHoldToTalk } from '../hooks/useHoldToTalk'
@@ -38,8 +38,15 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const now = useNow()
   const [noteDraft, setNoteDraft] = useState('')
   const [watchTab, setWatchTab] = useState<'timeline' | 'transcript'>('timeline')
+  const [confirmDispatchOpen, setConfirmDispatchOpen] = useState(false)
 
   const letter = laneLetter(inc)
+  const priority = derivePriority(alert)
+  // Available even when the ladder is suppressed (e.g. allow-listed plate,
+  // camera fault) — suppression stops the automated stages, not the
+  // operator's own judgment call. setSiren/setStrobe already work this way
+  // (no ladder-status guard at all); only 'complete' means nothing's left.
+  const dispatchAvailable = inc.ladder.status !== 'complete'
   const accent = LANE_ACCENT[inc.laneIndex] ?? 'lane-a'
   const site = server.sites.find((s) => s.id === inc.siteId)
   const camera = server.cameras.find((c) => c.id === inc.cameraId)
@@ -76,6 +83,7 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   }
 
   return (
+    <>
     <article className={`workspace ${accent}`} aria-label={`Focused lane ${letter} · ${alert.title}`}>
       <header className="ws-head">
         <span className="lane-key" title={`Focus — key ${letter}`}>{letter}</span>
@@ -214,12 +222,24 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
               {nextIn !== null && <span className="nx">Next in {nextIn}s</span>}
             </div>
             <div className="ladder-controls">
-              <button className="btn sm" onClick={() => void store.haltLadder(inc.id)} disabled={inc.ladder.status !== 'running'}>
+              <button
+                className="btn sm"
+                onClick={() => void store.haltLadder(inc.id)}
+                disabled={inc.ladder.status !== 'running' && inc.ladder.status !== 'armed'}
+              >
                 Halt <kbd>H</kbd>
               </button>
               <button className="btn sm" onClick={() => void store.resumeLadder(inc.id)} disabled={inc.ladder.status !== 'halted'}>
                 Resume <kbd>R</kbd>
               </button>
+              {dispatchAvailable && (
+                <button
+                  className={`btn sm destructive ${priority === 'P3' || priority === 'P4' ? 'dim' : ''}`}
+                  onClick={() => setConfirmDispatchOpen(true)}
+                >
+                  Confirm dispatch
+                </button>
+              )}
             </div>
           </div>
 
@@ -285,6 +305,27 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
         </div>
       </div>
     </article>
+    {confirmDispatchOpen && (
+      <div className="modal-backdrop">
+        <div className="modal confirm" role="alertdialog" aria-modal="true" aria-labelledby="dispatch-confirm-title">
+          <p id="dispatch-confirm-title">Confirm dispatch to {site?.name ?? inc.siteId}?</p>
+          <p>Police will be notified. This cannot be undone.</p>
+          <div className="modal-foot">
+            <button className="btn" onClick={() => setConfirmDispatchOpen(false)}>Cancel</button>
+            <button
+              className="btn primary"
+              onClick={() => {
+                setConfirmDispatchOpen(false)
+                void store.confirmDispatch(inc.id)
+              }}
+            >
+              Confirm dispatch
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

@@ -169,8 +169,10 @@ export type LadderStatus =
 export interface LadderStageDef {
   index: 0 | 1 | 2 | 3
   name: string
-  /** Seconds after ladder start at which the stage fires. */
-  atSec: number
+  /** Seconds after ladder start at which the stage fires automatically.
+   * Absent for Dispatch (v2 STATES.md §3: "never automatic" — confirmed by
+   * the operator only, see NocClient.confirmDispatch). */
+  atSec?: number
 }
 
 export interface LadderState {

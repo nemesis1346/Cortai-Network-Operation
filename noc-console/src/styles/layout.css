@@ -211,6 +211,13 @@
 .btn.sm { height: 28px; padding: 0 var(--sp-2); font-size: var(--fs-label); }
 .btn.sm:disabled { opacity: .4; cursor: not-allowed; }
 .btn.sm kbd { margin-left: 4px; }
+/* Confirm dispatch (v2 STATES.md §3): irreversible, so destructive styling
+   (COMPONENTS.md#Button: "Destructive only for irreversible steps"); dimmed
+   for P3/P4 — still available, just visually de-emphasized, not disabled. */
+.btn.destructive { border-color: var(--red); color: var(--red); }
+.btn.destructive:hover { background: var(--red-bg); }
+.btn.destructive.dim { border-color: var(--line-strong); color: var(--text-3); opacity: .75; }
+.btn.destructive.dim:hover { background: var(--panel-3); }
 
 /* deterrence row: verb + state + key (v2 ActionButton); hold-to-arm fills via --hold */
 .ws-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }

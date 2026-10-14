@@ -301,3 +301,42 @@ lanes; fixed with `key={focused.id}`, re-verified clean.
 
 Typecheck clean, 29/29 tests passing throughout (no new domain/store logic this part — the mic-claim
 guard is component-level, same precedent as the queue/wall filters in Parts 3-4).
+
+**14 Oct — v2 Part 6 (named ladder + closeout fit):**
+- `src/api/types.ts`: `LadderStageDef.atSec` is now optional — absent for Dispatch ("never automatic",
+  v2 STATES.md §3).
+- `src/domain/constants.ts#LADDER_STAGES`: Talk-down/Siren/Keyholder/Dispatch, firing at
+  `UNATTENDED_NOTICE/WARNING/ALARM_SEC` (30/45/60s) — reusing those constants directly, not duplicating
+  the numbers, since the alignment with the self-escalation clock is deliberate. Dispatch has no `atSec`.
+- `src/api/mock/MockNocClient.ts`: `openIncident` now starts the ladder `'armed'` (previously `'running'`
+  immediately) — wires up a status that existed in the type since before this part but was never set.
+  `fireStage` rewritten for 3 stages only (0-2); Siren (1) auto-arms `inc.siren` without the halt side
+  effect `setSiren` has (that's for an operator override, not the ladder's own progression); Keyholder
+  (2) queues a call, no AI speech. New `confirmDispatch(incidentId)`: sets `firedStage=3`, `status=
+  'complete'`, available any time short of already-complete — including on a suppressed ladder, matching
+  `setSiren`/`setStrobe`'s lack of a status guard (see the real-bug note in `V2-BUILD-PLAN.md`'s Part 6
+  notes for why the first version wrongly excluded suppressed). `haltLadderInternal`'s guard extended to
+  the new `'armed'` status.
+- `src/domain/timing.ts#secondsToNextStage`: skips stages with no `atSec` when finding "next" — returns
+  null once only Dispatch is left, instead of crashing on `undefined - t`.
+- `src/api/mock/data.ts`: `STAGE_SCRIPT` removed (the old 4 spoken lines no longer apply — Talk-down's
+  content is `buildCallout`, the other 3 stages don't speak). 3 Tait Street's `ladderAtSec` override
+  fixed to produce a full 4-stage array with Dispatch kept un-timed regardless of the override.
+- `src/components/LaneWorkspace.tsx`: Confirm Dispatch button in `.ladder-controls`, destructive styling,
+  dimmed (not disabled) for P3/P4, in-app confirm dialog (no native `confirm()`, audit C7 discipline).
+- `src/components/CloseoutModal.tsx`: recap's "Voice stages played: N of 4" (meaningless once stages
+  have names and Dispatch has no fixed total) is now "Ladder reached: {stage name}".
+- `src/store/store.ts`: `confirmDispatch` wired through; new `notifyLadderAdvance` toasts when a
+  *peripheral* lane's ladder reaches Keyholder (v2 STATES.md §3) — Dispatch is excluded from this by
+  construction, since it's only reachable via the focused lane's own button.
+
+Verified live: full progression through Armed → Talk-down (30s) → Siren auto-arms without halting (45s)
+→ Keyholder, countdown stops since Dispatch has no atSec (60s); Confirm Dispatch's dialog, Cancel
+leaving the ladder untouched, Confirm producing the transcript line and flipping to Complete; the
+dispatch button dimmed for P3/P4 and available (not hidden) for a suppressed lane; a peripheral lane's
+Keyholder toast; the closeout recap's real stage name. StatusBar's Sirens field updated from the
+ladder's own auto-arm, confirming it isn't wired only to the manual path.
+
+Typecheck clean, 37/37 tests passing (7 new: armed-on-open, Talk-down firing, Siren auto-arm without
+halting, Dispatch never auto-firing, confirmDispatch any time, confirmDispatch on a suppressed ladder,
+the peripheral-lane toast).

@@ -95,5 +95,16 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   which watch-tab is open) silently survived a lane switch instead of resetting. A real bug since Part
   1, caught once there was a second piece of local state to make it obvious. See `V2-BUILD-PLAN.md`'s
   Part 5 notes.
+- The response ladder is Talk-down → Siren → Keyholder → Dispatch (v2 STATES.md §3), not v1's 4 spoken
+  announcements ending in an automatic siren — a different shape, not a rename. Talk-down/Siren/
+  Keyholder fire automatically at 30/45/60s (the same constants the unattended self-escalation clock
+  uses — not a coincidence); Siren auto-arms without halting the ladder (that's `setSiren`'s own
+  operator-override side effect, not this). Dispatch has no `atSec` at all — "never automatic" — and is
+  confirmed by the operator only, any time, including on a suppressed ladder (suppression stops the
+  automated stages, not the operator's own judgment; `setSiren`/`setStrobe` already worked this way).
+  Dimmed, not disabled, for P3/P4. The ladder starts `'armed'` (counting toward Talk-down, not yet
+  speaking) — a status that already existed in `types.ts` with a "waiting for stage 0" comment but was
+  never actually set until now. See `docs/V2-BUILD-PLAN.md`'s Part 6 notes for a judgment call that was
+  wrong on the first pass (gating Dispatch on suppression) and fixed before it shipped.
 
 

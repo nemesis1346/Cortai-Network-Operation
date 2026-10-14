@@ -27,6 +27,8 @@ export interface NocClient {
   haltLadder(incidentId: string): Promise<Result<null>>
   /** Resumes a halted ladder from where it paused, not from 0 (v2 UI-SPEC.md §6: H/R). */
   resumeLadder(incidentId: string): Promise<Result<null>>
+  /** Stage 4, never automatic — the operator's own call, any time (v2 STATES.md §3). */
+  confirmDispatch(incidentId: string): Promise<Result<null>>
   setSiren(incidentId: string, on: boolean): Promise<Result<null>>
   setStrobe(incidentId: string, on: boolean): Promise<Result<null>>
   addNote(incidentId: string, text: string): Promise<Result<null>>

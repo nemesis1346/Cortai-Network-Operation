@@ -1,5 +1,6 @@
 import type { NocClient } from '../api/client'
-import type { AlertState, CameraStatus, IncidentReport, NextStepId, Snapshot } from '../api/types'
+import type { AlertState, CameraStatus, IncidentReport, NextStepId, ServerEvent, Snapshot } from '../api/types'
+import { laneLetter } from '../domain/rules'
 import { applyEvent } from './reducer'
 
 /** Client-only UI state. Never sent to the server. */
@@ -70,13 +71,33 @@ export class NocStore {
     const buffered: Parameters<typeof applyEvent>[1][] = []
     let ready = false
     this.unsubscribe = this.client.subscribe((e) => {
-      if (!ready) buffered.push(e)
-      else this.setServer(applyEvent(this.state.server as Snapshot, e))
+      if (!ready) {
+        buffered.push(e)
+        return
+      }
+      this.setServer(applyEvent(this.state.server as Snapshot, e))
+      this.notifyLadderAdvance(e)
     })
     let snap = await this.client.getSnapshot()
     for (const e of buffered) snap = applyEvent(snap, e)
     ready = true
     this.setServer(snap)
+  }
+
+  /**
+   * v2 STATES.md §3: "A peripheral lane advancing to Keyholder or Dispatch
+   * shows a toast naming the lane." Dispatch never fires on its own (operator
+   * confirm only, and only reachable from the focused lane's own ladder
+   * controls — never peripheral by construction), so only Keyholder applies
+   * in practice. Checked after setServer so the toast reads the post-event
+   * focusIncidentId, not stale state.
+   */
+  private notifyLadderAdvance(e: ServerEvent): void {
+    if (e.type !== 'ladder.updated' || e.ladder.firedStage !== 2) return
+    const s = this.state.server
+    if (!s || s.focusIncidentId === e.ladder.incidentId) return
+    const inc = s.incidents.find((i) => i.id === e.ladder.incidentId)
+    if (inc) this.toast(`Lane ${laneLetter(inc)} ladder reached Keyholder`, 'warn')
   }
 
   disconnect(): void {
@@ -161,6 +182,7 @@ export class NocStore {
 
   haltLadder = (id: string) => this.client.haltLadder(id)
   resumeLadder = (id: string) => this.client.resumeLadder(id)
+  confirmDispatch = (id: string) => this.client.confirmDispatch(id)
   setSiren = (id: string, on: boolean) => this.client.setSiren(id, on)
   setStrobe = (id: string, on: boolean) => this.client.setStrobe(id, on)
   acknowledgePage = (desk: number) => this.client.acknowledgePage(desk)

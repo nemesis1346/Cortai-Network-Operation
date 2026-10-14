@@ -9,7 +9,7 @@ const SITE_SEEDS: { id: string; name: string; locality: string; cams: CamSeed[];
   { id: 's2', name: '434 N Rivermede', locality: 'Concord', cams: [['12', 'Loading bay', 'fault'], ['19', 'Rear elevation', 'offline'], ['20', 'Unit corridor', 'live']] },
   // Faster procedure at this site (repeat-plate pattern on the watch list): overrides
   // the global 0/12/30/45s default. Yassine, 1 Oct: ladder timings come from the site.
-  { id: 's3', name: '3 Tait Street', locality: 'Huntsville', cams: [['05', 'Parking', 'motion'], ['06', 'Lobby', 'live']], ladderAtSec: [0, 8, 20, 35] },
+  { id: 's3', name: '3 Tait Street', locality: 'Huntsville', cams: [['05', 'Parking', 'motion'], ['06', 'Lobby', 'live']], ladderAtSec: [0, 8, 20] },
   { id: 's4', name: 'Courtyard PS', locality: 'Parry Sound', cams: [['03', 'Porte cochere', 'live'], ['22', 'Corridor L2', 'live', true]] },
   { id: 's5', name: '1496 Winhara Rd', locality: 'Gravenhurst', cams: [['31', 'Compound gate', 'live']] },
 ]
@@ -18,7 +18,12 @@ export function seedEstate(now: number): { sites: Site[]; cameras: Camera[] } {
   const sites: Site[] = []
   const cameras: Camera[] = []
   for (const s of SITE_SEEDS) {
-    const ladderStages = s.ladderAtSec?.map((atSec, i) => ({ ...LADDER_STAGES[i]!, atSec }))
+    // Overrides atSec on the timed stages (0-2) only — Dispatch (3) keeps the
+    // default's no-atSec ("never automatic") regardless of a per-site override.
+    const overrides = s.ladderAtSec
+    const ladderStages = overrides
+      ? LADDER_STAGES.map((stage, i) => (i < 3 && overrides[i] !== undefined ? { ...stage, atSec: overrides[i] } : stage))
+      : undefined
     sites.push({ id: s.id, name: s.name, locality: s.locality, cameraIds: s.cams.map((c) => c[0]), ladderStages })
     for (const [id, name, status, masked] of s.cams) {
       const down = status === 'fault' || status === 'offline'
@@ -137,9 +142,3 @@ export const STILL_CAPTIONS: { description: string; kind: EvidenceKind }[] = [
   { description: 'Departure direction, street heading', kind: 'scene' },
 ]
 
-export const STAGE_SCRIPT = [
-  'Attention. This is private property. You are being recorded and this activity has been reported. Please return to your vehicle and leave.',
-  '', // stage 1 is built from the alert's subject descriptors
-  'Final warning. Leave the property now. This recording has been transmitted off-site and police have been contacted.',
-  'This area remains recorded and monitored.',
-]

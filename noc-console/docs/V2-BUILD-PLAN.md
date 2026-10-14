@@ -16,7 +16,7 @@ the center exists.
 | 3 | **Estate tree + queue adjustments** — status-dot totals (Live/Motion/Fault/Offline) replacing the camera ribbon; queue's `All`/`P1–P2` filter. | `CameraRibbon.tsx` (ribbon strip + fault list) | — (independent of 1–2) | **Done**, 9 Oct |
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
-| 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | Not started — Halt/Resume already landed in Part 1, ahead of schedule |
+| 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | Not started |
 
 ## Part 1 notes
@@ -218,3 +218,62 @@ StatusBar's Mic field updates to the lane letter; releasing clears the pulse but
 (`aria-pressed` stays true); re-pressing while already bound adds no duplicate transcript line; the
 MicConfirmDialog flow (pre-existing, untouched) still correctly gates a focus switch while the mic is
 bound elsewhere.
+
+## Part 6 notes
+
+**Not just a rename — the ladder's own meaning changed**: v1/phase 1's 4 stages were all spoken AI
+announcements, escalating in tone, ending in an automatic siren. v2's STATES.md §3 replaces this with 1
+spoken stage (Talk-down) followed by 3 escalating *actions* (Siren auto-arms, Keyholder call queues,
+Dispatch waits for the operator) — a different shape, not new labels on the old one. `buildCallout`
+(dynamic, built from the alert's own descriptors) is now Talk-down's sole content; the old static
+intro/final-warning/closing lines are retired, not ported forward.
+
+**Timings changed too, deliberately**: STATES.md's 30s/45s/60s for Talk-down/Siren/Keyholder are
+identical to `UNATTENDED_NOTICE/WARNING/ALARM_SEC` — confirmed this isn't a coincidence (both model the
+same "how long has this lane gone unaddressed" question) and wired `LADDER_STAGES` to reference those
+constants directly rather than duplicating the numbers. Stage 1 no longer fires at t=0 the way v1's did;
+the ladder now starts in a new `'armed'` status (counting toward Talk-down, not yet speaking) — this
+status already existed in `types.ts` with a comment ("waiting for stage 0") but was never actually set
+anywhere, so this wires up dead-but-anticipated code rather than inventing new state.
+
+**Dispatch has no `atSec` — designed, not a bug**: STATES.md's duration column is literally "—" for
+Dispatch, distinct from Keyholder's "60s". Read as: Dispatch isn't a 4th timed rung on the automatic
+ladder at all, it's a standalone operator-confirmed action, available any time (not gated on Keyholder
+having fired — a P1 might warrant jumping straight to it) and *including when the ladder is suppressed*
+(a judgment call I got wrong on the first pass — see the real-bug note below). `LadderStageDef.atSec`
+is now optional; `tick()`'s firing loop and `secondsToNextStage` both skip stages without one.
+
+**Judgment call — dimmed means dimmed, not disabled**: "Shown dimmed for P3/P4" reads as a visual
+treatment (muted styling, same `.dim`/opacity convention as the P4 queue rows), not a hard block —
+consistent with the project's standing pattern of operator judgment over automated gates for the most
+severe actions. The button stays clickable for P3/P4, just visually de-emphasized.
+
+**Judgment call — no confirm-dispatch hotkey**: unlike H/R, STATES.md's Deterrents table lists no key
+for Dispatch, and it's the one truly irreversible action in the whole app (can't un-call the police) —
+click-through with an in-app confirm dialog only (matching the project's no-`window.confirm()` discipline,
+audit C7), consistent with how "Close incident" also has no forced global hotkey.
+
+**Closeout "adapted to the new layout" scoped narrowly, not as a 3-step rebuild**: v2's CloseoutModal
+spec lists `step: 'memo' | 'next-steps' | 'done'`, but a full 3-step rebuild would entangle with the
+still-**Blocked** Report/Record merge (`DECISIONS.md` #5 — needs the History feature, which doesn't
+exist). Scoped this part to what's actually unblocked: the recap's "Voice stages played: N of 4" line
+(meaningless once stages have real names and Dispatch has no fixed total) became "Ladder reached:
+{stage name}".
+
+**Real bug found and fixed, not a test artifact — this time caught before shipping, not after**: my
+first pass gated `confirmDispatch` behind `status !== 'suppressed'`, reasoning that a suppressed ladder
+(allow-listed plate, camera fault) shouldn't escalate to Dispatch. Live-testing against a suppressed
+seed alert (`a3`, "camera fault, not a presence event") showed the Confirm Dispatch button never
+rendering — correct per my own logic, but wrong: `setSiren`/`setStrobe` have no ladder-status guard at
+all, so an operator can already override suppression manually for those; Dispatch should follow the
+same discipline, not invent a stricter rule STATES.md never stated. Fixed by dropping the suppressed
+check everywhere (component, client, and a new store test exercising it against `a3` directly) — only
+`'complete'` blocks it now.
+
+**Verified live**: full ladder progression at t=0/30/45/60s (Armed → Talk-down → Siren auto-arms,
+without halting the ladder → Keyholder, no further countdown since Dispatch has no atSec); Confirm
+Dispatch's in-app dialog, Cancel leaving the ladder untouched, Confirm producing "Stage 4 confirmed ·
+Dispatch" and flipping to Complete; the dispatch button dimmed for a P3/P4 lane and available (not
+hidden) for a suppressed one; a peripheral lane reaching Keyholder producing a toast naming the lane;
+the closeout recap showing the real stage name reached. StatusBar's Sirens field picked up the
+ladder-armed siren automatically, confirming it isn't wired only to the manual setSiren path.
