@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockNocClient } from '../api/mock/MockNocClient'
+import { derivePriority } from '../domain/rules'
 import { alertCounts } from './selectors'
 import { NocStore } from './store'
 
@@ -257,5 +258,68 @@ describe('named ladder: Talk-down / Siren / Keyholder / Dispatch (v2 STATES.md Â
     vi.advanceTimersByTime(60_000)
     expect(store.getState().ui.toast?.text).toMatch(/Lane B ladder reached Keyholder/)
     client.stop()
+  })
+})
+
+describe('camera view and raising a lane without an AI alert (v2 Part 7)', () => {
+  it('opening a camera view clears focus â€” breaks attention for every lane', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    expect(server(store).focusIncidentId).not.toBeNull()
+    await store.openCameraView('07')
+    expect(store.getState().ui.viewingCameraId).toBe('07')
+    expect(server(store).focusIncidentId).toBeNull()
+  })
+
+  it('switching cameras while already viewing does not re-touch focus or the remembered lane', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const focusedId = server(store).focusIncidentId
+    await store.openCameraView('07')
+    await store.openCameraView('08') // same site, different camera
+    expect(store.getState().ui.viewingCameraId).toBe('08')
+    await store.closeCameraView()
+    expect(server(store).focusIncidentId).toBe(focusedId) // still restores the original lane
+  })
+
+  it('closing camera view restores the lane that was focused before it opened', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const focusedId = server(store).focusIncidentId
+    await store.openCameraView('07')
+    await store.closeCameraView()
+    expect(store.getState().ui.viewingCameraId).toBeNull()
+    expect(server(store).focusIncidentId).toBe(focusedId)
+  })
+
+  it('closing camera view with no lane to return to just clears it, no crash', async () => {
+    const store = await boot()
+    await store.openCameraView('07') // no incidents open at all
+    await store.closeCameraView()
+    expect(store.getState().ui.viewingCameraId).toBeNull()
+    expect(server(store).focusIncidentId).toBeNull()
+  })
+
+  it('raises each priority exactly, with no AI alert behind it, and clears camera view', async () => {
+    const store = await boot()
+    for (const p of ['P1', 'P2', 'P3', 'P4'] as const) {
+      const fresh = await boot()
+      await fresh.raiseIncident('07', p)
+      const inc = server(fresh).incidents[0]!
+      const alert = server(fresh).alerts.find((a) => a.id === inc.alertId)!
+      expect(derivePriority(alert)).toBe(p)
+    }
+    await store.openCameraView('07')
+    await store.raiseIncident('07', 'P2')
+    expect(store.getState().ui.viewingCameraId).toBeNull()
+    expect(server(store).incidents.length).toBe(1)
+  })
+
+  it('refuses to raise a 4th lane, same lane-limit rule as the queue', async () => {
+    const store = await boot()
+    for (const id of ['a1', 'a2', 'a3']) await store.openIncident(id)
+    await store.raiseIncident('07', 'P1')
+    expect(server(store).incidents.length).toBe(3)
+    expect(store.getState().ui.toast?.text).toMatch(/three lanes/i)
   })
 })

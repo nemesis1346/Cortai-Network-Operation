@@ -1,6 +1,6 @@
 import type { NocClient } from '../api/client'
 import type { AlertState, CameraStatus, IncidentReport, NextStepId, ServerEvent, Snapshot } from '../api/types'
-import { laneLetter } from '../domain/rules'
+import { laneLetter, type QueuePriority } from '../domain/rules'
 import { applyEvent } from './reducer'
 
 /** Client-only UI state. Never sent to the server. */
@@ -13,6 +13,13 @@ export interface UiState {
   wallOpen: boolean
   /** v2 COMPONENTS.md#CameraWall: segmented tabs with counts, 'all' default. */
   wallFilter: 'all' | CameraStatus
+  /** v2 COMPONENTS.md#CameraWorkspace: camera with no incident, replaces the
+   * lane workspace in Center while set. Breaks attention for all lanes
+   * (STATES.md §2) — opening it calls setFocus(null), same as leaving a lane. */
+  viewingCameraId: string | null
+  /** The lane focused right before camera view opened, so "Back to lane"
+   * (Esc) can restore it rather than falling back to the first open lane. */
+  cameraViewReturnTo: string | null
   /** Refusal shown where the action happened (audit A20), persists until dismissed. */
   queueRefusal: string | null
   /** Waiting for the operator to confirm moving the mic. Replaces window.confirm (C7). */
@@ -34,6 +41,8 @@ const initialUi: UiState = {
   queuePriorityFilter: 'all',
   wallOpen: false,
   wallFilter: 'all',
+  viewingCameraId: null,
+  cameraViewReturnTo: null,
   queueRefusal: null,
   micConfirm: null,
   closingIncidentId: null,
@@ -119,6 +128,40 @@ export class NocStore {
 
   dismissRefusal(): void {
     this.patchUi({ queueRefusal: null })
+  }
+
+  /**
+   * v2 CameraWorkspace: camera with no incident, swaps in for the lane
+   * workspace. First open remembers the previously-focused lane (for "Back
+   * to lane") and calls setFocus(null) — breaks attention for every lane,
+   * same mechanism a focus switch already uses. Switching cameras within an
+   * already-open view just swaps which one, no refocus/remember needed.
+   */
+  async openCameraView(cameraId: string): Promise<void> {
+    if (this.state.ui.viewingCameraId === null) {
+      this.patchUi({ cameraViewReturnTo: this.state.server?.focusIncidentId ?? null })
+      await this.client.setFocus(null)
+    }
+    this.patchUi({ viewingCameraId: cameraId })
+  }
+
+  /** Esc / "Back to lane" — restores the lane that was focused before, if it's still open. */
+  async closeCameraView(): Promise<void> {
+    const returnTo = this.state.ui.cameraViewReturnTo
+    this.patchUi({ viewingCameraId: null, cameraViewReturnTo: null })
+    if (returnTo && this.state.server?.incidents.some((i) => i.id === returnTo)) {
+      await this.client.setFocus(returnTo)
+    }
+  }
+
+  /** Raise incident (I) from camera view — no AI alert behind it, the operator picks the priority. */
+  async raiseIncident(cameraId: string, priority: QueuePriority): Promise<void> {
+    const r = await this.client.raiseIncident(cameraId, priority)
+    if (!r.ok) {
+      this.toast(r.error.message, 'warn')
+      return
+    }
+    this.patchUi({ viewingCameraId: null, cameraViewReturnTo: null })
   }
 
   async holdAlert(alertId: string): Promise<void> {

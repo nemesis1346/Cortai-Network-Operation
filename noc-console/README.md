@@ -26,16 +26,18 @@ src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typin
                            useHoldToArm (v2's 600ms hold-to-arm gesture, siren/strobe), useHoldToTalk
                            (v2's no-delay press/release gesture, two-way talk)
 src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
-                           columns; v2 Part 5: Timeline/Transcript tabs, CommsDock) + PeripheralLanes/
-                           LaneCard (v2 Part 2: other open lanes, right rail — live sub-stream, priority
-                           badge, self-escalating unattended meter), EscalationBar (desk-level alarm,
-                           supersedes CriticalBand), Queue (v2 Part 3: All/P1-P2 priority filter
-                           alongside the tabs), estate tree (v2 Part 3: EstateStat totals, sole owner of
-                           per-camera status), CameraWall (v2 Part 4: status-tab filter, stays open
-                           while incidents are open, supersedes CameraRibbon), CommsDock (v2 Part 5:
-                           mic routing + waveform + last line, inside the focused lane), StatusBar (v2
-                           Part 5: global mic/sirens summary, supersedes VoiceStrip), watch list,
-                           closeout/report modals, mic-confirm dialog, toasts, shortcuts
+                           columns; v2 Part 5: Timeline/Transcript tabs, CommsDock; v2 Part 6: named
+                           ladder, Confirm Dispatch) + PeripheralLanes/LaneCard (v2 Part 2: other open
+                           lanes, right rail — live sub-stream, priority badge, self-escalating
+                           unattended meter), EscalationBar (desk-level alarm, supersedes CriticalBand),
+                           Queue (v2 Part 3: All/P1-P2 priority filter alongside the tabs), estate tree
+                           (v2 Part 3: EstateStat totals, sole owner of per-camera status), CameraWall
+                           (v2 Part 4: status-tab filter, stays open while incidents are open, supersedes
+                           CameraRibbon), CommsDock (v2 Part 5: mic routing + waveform + last line,
+                           inside the focused lane), StatusBar (v2 Part 5: global mic/sirens summary,
+                           supersedes VoiceStrip), CameraWorkspace (v2 Part 7: camera view with no
+                           incident, raises a lane), watch list, closeout/report modals, mic-confirm
+                           dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -78,9 +80,8 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   wanted to see on Figma first before this got built anyway (`docs/DECISIONS.md`, 5 Oct). The overlay
   only ever covered the centre column (audit A11), so lane cards and the EscalationBar keep running
   underneath it. A wall tile for a camera an open lane owns focuses that lane; a tile for a camera with
-  no lane says camera view isn't built yet (that screen is Part 7) rather than doing nothing silently.
-  See `docs/V2-BUILD-PLAN.md`'s Part 4 notes, including a real CSS positioning bug found and fixed
-  during live verification.
+  no lane opens CameraWorkspace (v2 Part 7). See `docs/V2-BUILD-PLAN.md`'s Part 4 notes, including a
+  real CSS positioning bug found and fixed during live verification.
 - The global voice strip footer is gone, split into two per v2 deviations#5: `CommsDock` (mic routing,
   waveform, last transcript line, "Move mic here") lives inside the focused lane now; `StatusBar`
   (just Mic + Sirens) stays as a minimal global footer so a siren on a lane you're not looking at is
@@ -106,5 +107,16 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   speaking) — a status that already existed in `types.ts` with a "waiting for stage 0" comment but was
   never actually set until now. See `docs/V2-BUILD-PLAN.md`'s Part 6 notes for a judgment call that was
   wrong on the first pass (gating Dispatch on suppression) and fixed before it shipped.
+- Part 7 (new-in-v2 screens) is split into sub-parts — it's seven different screens, two of them already
+  blocked (History on the Report/Record merge, sign-in/lock on the Lionston OTP flow). First up:
+  CameraWorkspace, a camera with no incident. Scoped narrower than the full spec: no pre-incident
+  "site log" for speech/deterrents/notes before raising — `CommsDock`/`useHoldToTalk`/`setSiren`/
+  `setStrobe` all take an `incidentId` throughout, and the real flow raises first, then uses full
+  deterrent capability from inside the new lane, which already works. Raising without an AI alert picks
+  `severity`/`insidePropertyLine` so `derivePriority` lands on exactly the operator's chosen tier,
+  rather than adding a second, hand-set priority representation other code would need to know about.
+  Opening camera view reuses `setFocus(null)` wholesale for "breaks attention for all lanes" (STATES.md
+  §2) — the attention model already keyed entirely off `focusIncidentId`, so no new escalation logic was
+  needed. See `docs/V2-BUILD-PLAN.md`'s Part 7 notes.
 
 

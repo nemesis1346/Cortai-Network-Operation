@@ -1,14 +1,25 @@
 import type { Snapshot } from '../api/types'
+import { useUi } from '../store/context'
 import { incidentsByLane } from '../store/selectors'
+import { CameraWorkspace } from './CameraWorkspace'
 import { LaneWorkspace } from './LaneWorkspace'
 
 /**
  * One focused Lane Workspace fills the centre (v2 interaction model, replacing
  * the mockup's 1/2/2+mini grid — see docs/V2-BUILD-PLAN.md Part 1). Other open
- * lanes render in the right rail via PeripheralLanes, not here.
+ * lanes render in the right rail via PeripheralLanes, not here. CameraWorkspace
+ * (v2 Part 7) takes the same slot while viewing a camera with no incident —
+ * checked first, ahead of the "no lanes open" empty state, since viewing a
+ * quiet camera is the common case, not an edge case of having zero lanes.
  */
 export function Lanes({ server }: { server: Snapshot }) {
+  const ui = useUi()
   const lanes = incidentsByLane(server)
+
+  if (ui.viewingCameraId) {
+    const camera = server.cameras.find((c) => c.id === ui.viewingCameraId)
+    if (camera) return <CameraWorkspace camera={camera} server={server} />
+  }
 
   if (!lanes.length) {
     return (

@@ -145,6 +145,22 @@
 .ws-sub-h { font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-2); margin-bottom: var(--sp-2); }
 
+/* CameraWorkspace (v2 Part 7): single column, not watch|decide — much lighter
+   than a lane (no ladder, no deterrents, no evidence yet — there's no incident). */
+.camera-workspace .cw-body { flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); overflow-y: auto; }
+.camera-workspace .ws-video { max-height: 56%; flex-shrink: 0; }
+.cw-strip { flex-shrink: 0; }
+.cw-strip-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+.cw-tile { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--r-2);
+  border: 1px solid var(--line-subtle); background: var(--panel-2); font-size: var(--fs-body); }
+.cw-tile:hover { background: var(--panel-3); }
+.cw-tile.active { border-color: var(--cyan); color: var(--cyan); }
+.cw-raise { flex-shrink: 0; max-width: 420px; }
+.cw-raise .seg { padding: 0; margin: var(--sp-2) 0; }
+.cw-raise-btn { width: 100%; height: 36px; }
+.cw-raise-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cw-hint { margin-top: var(--sp-2); font-size: var(--fs-micro); color: var(--text-3); }
+
 /* watch column: video capped, evidence fixed, timeline takes the rest */
 .ws-video { position: relative; background: #060809; flex: 0 0 auto; max-height: 48%; aspect-ratio: 16 / 9; }
 .video-slot { position: absolute; inset: 0; display: grid; place-items: center; }

@@ -20,7 +20,7 @@ import type {
   WatchScore,
 } from '../types'
 import { LADDER_STAGES, MAX_LANES, MEMO_MIN_LENGTH, UNATTENDED_ALARM_SEC } from '../../domain/constants'
-import { buildCallout, checkMemo } from '../../domain/rules'
+import { buildCallout, checkMemo, type QueuePriority } from '../../domain/rules'
 import { attendedSec, incidentAgeSec, ladderElapsedSec, unattendedStreakSec } from '../../domain/timing'
 import { STILL_CAPTIONS, seedAlerts, seedEstate, seedWatch } from './data'
 
@@ -168,6 +168,32 @@ export class MockNocClient implements NocClient {
     }
     if (!this.snap.focusIncidentId) await this.setFocus(id)
     return ok(incident)
+  }
+
+  /**
+   * v2 CameraWorkspace: raises straight from a camera, no AI alert behind it.
+   * severity/insidePropertyLine are picked to make derivePriority land on
+   * exactly the operator's chosen tier — P4 is only reachable there via
+   * severity 3 + outside the line, since severity itself tops out at 3, so
+   * that's the one combination used for it. Reuses openIncident entirely
+   * once the alert exists, so lane-limit, focus and ledger/transcript seeding
+   * all come from the one place that already owns them.
+   */
+  async raiseIncident(cameraId: string, priority: QueuePriority): Promise<Result<Incident>> {
+    const camera = this.snap.cameras.find((c) => c.id === cameraId)
+    if (!camera) return fail('NOT_FOUND', 'Camera not found')
+    const tier = Number(priority.slice(1))
+    const insidePropertyLine = tier < 4
+    const severity = (tier === 4 ? 3 : tier) as Alert['severity']
+    const id = `ra${++this.seq}` // distinct prefix: seed alerts already own a1-a6
+    const alert: Alert = {
+      id, siteId: camera.siteId, cameraId, severity, state: 'new',
+      title: `Operator-raised · Cam ${camera.id}`, raisedAt: new Date().toISOString(), confidence: null,
+      insidePropertyLine, riskFactors: [{ label: 'Raised by operator, no AI alert', weight: 'high' }],
+    }
+    this.snap.alerts.push(alert)
+    this.emit({ type: 'alert.upsert', alert })
+    return this.openIncident(id)
   }
 
   async setFocus(incidentId: string | null): Promise<Result<null>> {

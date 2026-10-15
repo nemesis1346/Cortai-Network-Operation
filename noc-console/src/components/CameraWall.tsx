@@ -16,8 +16,7 @@ const WALL_TABS: { id: 'all' | CameraStatus; label: string }[] = [
  * v2 COMPONENTS.md#CameraTile. A tile for a camera an open lane owns jumps to
  * that lane — the wall never shows a second, competing view of a camera
  * someone is already working (deviations#13). A tile with no owning lane
- * would open v2's standalone "camera view" (new-in-v2, Part 7) — that screen
- * doesn't exist yet, so this says so instead of a dead click.
+ * opens v2's standalone CameraWorkspace (Part 7) instead.
  */
 function CameraTile({ camera, server }: { camera: Camera; server: Snapshot }) {
   const store = useStore()
@@ -25,12 +24,9 @@ function CameraTile({ camera, server }: { camera: Camera; server: Snapshot }) {
   const siteName = server.sites.find((s) => s.id === camera.siteId)?.name ?? camera.siteId
 
   const open = () => {
-    if (inc) {
-      void store.requestFocus(inc.id)
-      store.toggleWall()
-      return
-    }
-    store.toast(`Cam ${camera.id} has no open incident — camera view isn't built yet.`, 'info')
+    store.toggleWall()
+    if (inc) void store.requestFocus(inc.id)
+    else void store.openCameraView(camera.id)
   }
 
   return (

@@ -17,7 +17,19 @@ the center exists.
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
-| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | Not started |
+| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | In progress — too large for one pass, broken out below |
+
+### Part 7 sub-parts
+
+| Screen | Status |
+|---|---|
+| Camera view without an incident (CameraWorkspace) | **Done**, 15 Oct |
+| Shift report | Not started |
+| Settings (theme/typeface) | Not started |
+| Command palette (⌘K) | Not started |
+| Help (F1) | Not started — content-heavy (search, article tree), lower priority than the others |
+| History (sealed records) | **Blocked** — entangled with the still-open Report/Record merge, `DECISIONS.md` #5 |
+| Sign-in / lock / connection-lost | **Blocked** — needs the Lionston OTP flow, `DECISIONS.md` the auth blocker |
 
 ## Part 1 notes
 
@@ -277,3 +289,48 @@ Dispatch" and flipping to Complete; the dispatch button dimmed for a P3/P4 lane 
 hidden) for a suppressed one; a peripheral lane reaching Keyholder producing a toast naming the lane;
 the closeout recap showing the real stage name reached. StatusBar's Sirens field picked up the
 ladder-armed siren automatically, confirming it isn't wired only to the manual setSiren path.
+
+## Part 7 notes (camera view without an incident)
+
+**Part 7 is too big for one pass — split into sub-parts rather than attempted whole.** The build plan's
+one-liner bundles seven genuinely different screens. Two are explicitly blocked already (History needs
+the still-open Report/Record merge; sign-in/lock needs the Lionston OTP flow, neither of which changed
+since `DECISIONS.md`). Of what's left, Camera View closes a loose end I left myself in Part 4 (the
+"camera view isn't built yet" toast on an unowned wall tile) and is the most self-contained, so it went
+first. Shift report, Settings and Command palette are reasonable next picks, in roughly that order of
+value; Help is lower priority since it's mostly content authoring, not logic.
+
+**Scoped narrower than the full CameraWorkspace spec, flagged not dropped**: v2's spec has speech,
+deterrents and notes write to a "site log" while viewing a camera, then migrate into the new lane on
+Raise. Phase 1 has no pre-incident logging surface at all — `CommsDock`, `useHoldToTalk` and
+`setSiren`/`setStrobe` all take an `incidentId` throughout the codebase — building a parallel no-incident
+path for them would be a real architectural fork, not a small addition, for a flow the real UX probably
+doesn't need anyway: an operator who sees something worth talking to on an idle camera raises the
+incident first, then has full deterrent/talk capability from inside the new lane immediately, which
+already works end to end. This version of `CameraWorkspace` is: view the camera, browse other cameras at
+the same site, raise an incident at a chosen priority. Documented here as the explicit scope cut it is,
+not discovered as a gap later.
+
+**Raising without an AI alert needed a real design decision, not a shortcut**: every other alert in the
+system has `derivePriority`-computed priority (Yassine, 1 Oct: "never set by hand"). An operator raising
+straight from a camera has no AI severity to compute from — there's no alert yet, hence no computed
+value to defer to. Rather than add a second priority representation (a hand-set field some code paths
+read and others don't), the new alert's `severity`/`insidePropertyLine` are chosen so `derivePriority`
+lands on exactly the tier the operator picked — P4 needs severity 3 + outside-the-line specifically,
+since severity itself tops out at 3. Every other component (Queue, LaneWorkspace, the closeout recap)
+keeps working completely unchanged; they have no idea this alert didn't come from the AI.
+
+**Breaking attention reused `setFocus(null)` wholesale, not a new mechanism**: STATES.md §2 says camera
+view "breaks attention for all lanes." The attention model (Part 2) already keys entirely off
+`focusIncidentId` — a lane only reads as attended when it IS the focus. Opening camera view therefore
+just calls the existing `setFocus(null)`, the same call a focus switch already makes; every lane
+(including the one that was focused) starts counting its unattended streak immediately, no new state or
+special-casing needed in the escalation selectors at all.
+
+**Verified live**: opening a wall tile for an unowned camera correctly opens CameraWorkspace and closes
+the wall; the site-camera strip switches which camera is shown without touching focus a second time;
+raising at each of the four priorities produced an alert whose `derivePriority` matched exactly; the new
+lane integrated cleanly with every earlier part (ladder started Armed with the usual 30/45/60s timing,
+Confirm Dispatch available and undimmed at P1, CommsDock and StatusBar both correct) with no adjustments
+needed anywhere; Esc correctly restored the lane that was focused before camera view opened; the Raise
+button correctly disabled with a hint once three lanes were already open. No real bugs found.

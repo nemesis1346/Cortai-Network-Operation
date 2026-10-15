@@ -340,3 +340,33 @@ ladder's own auto-arm, confirming it isn't wired only to the manual path.
 Typecheck clean, 37/37 tests passing (7 new: armed-on-open, Talk-down firing, Siren auto-arm without
 halting, Dispatch never auto-firing, confirmDispatch any time, confirmDispatch on a suppressed ladder,
 the peripheral-lane toast).
+
+**15 Oct — v2 Part 7, camera view without an incident (CameraWorkspace):**
+- `src/api/client.ts` / `src/api/mock/MockNocClient.ts`: new `raiseIncident(cameraId, priority)` —
+  synthesizes an `Alert` with no AI origin (`severity`/`insidePropertyLine` chosen so `derivePriority`
+  resolves to exactly the requested tier; P4 needs severity 3 + outside-the-line, the only combination
+  that reaches it since severity tops out at 3) and hands off to the existing `openIncident` entirely,
+  so lane-limit, focus and ledger/transcript seeding all come from the one place that already owns them.
+  Alert ids use an `ra` prefix (seed alerts already own `a1`-`a6`).
+- `src/store/store.ts`: `UiState.viewingCameraId` / `cameraViewReturnTo`; `openCameraView` (first call
+  remembers the focused lane and calls `setFocus(null)` — breaks attention for every lane, STATES.md
+  §2 — later calls just swap which camera), `closeCameraView` (restores the remembered lane if it's
+  still open), `raiseIncident` wrapper (clears camera-view state on success).
+- `src/components/CameraWorkspace.tsx` (new): camera + site-camera strip + Raise incident (P1-P4,
+  disabled with a hint once lanes are full). Deliberately does not include speech/deterrents/notes
+  before raising — see `V2-BUILD-PLAN.md`'s Part 7 notes for why that's a flagged scope cut, not a gap.
+- `src/components/Lanes.tsx`: checks `ui.viewingCameraId` before the lane-fallback logic, so
+  CameraWorkspace renders even with zero lanes open (the common case, not an edge case).
+- `src/components/CameraWall.tsx`: an unowned tile now calls `openCameraView` instead of the Part 4
+  placeholder toast.
+
+Verified live: opening an unowned wall tile opens CameraWorkspace and closes the wall; the site-camera
+strip switches cameras without re-touching focus; raising at each of the four priorities produced an
+alert whose `derivePriority` matched exactly; the raised lane integrated cleanly with every earlier part
+(ladder armed with the usual timing, Confirm Dispatch available and undimmed at P1, CommsDock/StatusBar
+both correct) with no adjustments needed; Esc restored the previously-focused lane; the Raise button
+correctly disabled with a hint once three lanes were open. No real bugs found.
+
+Typecheck clean, 43/43 tests passing (6 new: camera view clears focus, switching cameras doesn't
+re-touch it, Esc restores the previous lane, closing with nothing to return to doesn't crash, each
+priority raises exactly, and the lane-limit refusal).

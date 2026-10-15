@@ -1,3 +1,4 @@
+import type { QueuePriority } from '../domain/rules'
 import type {
   CloseIncidentInput,
   Incident,
@@ -18,6 +19,10 @@ export interface NocClient {
   subscribe(handler: (event: ServerEvent) => void): () => void
 
   openIncident(alertId: string): Promise<Result<Incident>>
+  /** v2 CameraWorkspace: raises a lane straight from a camera with no AI alert
+   * behind it — the operator picks the priority by hand (there's no severity
+   * to derive it from), unlike every AI-raised alert. */
+  raiseIncident(cameraId: string, priority: QueuePriority): Promise<Result<Incident>>
   /** Parks a 'new' alert without opening a lane. Yassine, 1 Oct: keep the Held tab, add this action. */
   holdAlert(alertId: string): Promise<Result<null>>
   closeIncident(incidentId: string, input: CloseIncidentInput): Promise<Result<IncidentReport>>
