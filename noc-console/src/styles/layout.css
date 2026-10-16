@@ -480,6 +480,12 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .modal.confirm p:first-of-type { font-weight: 500; color: var(--text-1); }
 .modal.report { width: min(680px, 100%); }
 .modal.shift-report { width: min(760px, 100%); }
+.modal.settings { width: min(420px, 100%); }
+
+/* SettingsModal (v2 Part 7): theme + typeface only. */
+.settings-field { display: flex; flex-direction: column; gap: var(--sp-2); }
+.settings-field + .settings-field { margin-top: var(--sp-3); }
+.settings-field .seg { padding: 0; }
 
 /* ShiftReportModal (v2 Part 7): KPIs + hour histogram stay fixed, only
    .sr-table-wrap scrolls (spec: "only the table scrolls"). */

@@ -24,7 +24,8 @@ src/domain/               Pure rules: queue priority, memo check, callout, timin
 src/store/                reducer (ServerEvent -> state), NocStore (commands + UI state), selectors, React context
 src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery,
                            useHoldToArm (v2's 600ms hold-to-arm gesture, siren/strobe), useHoldToTalk
-                           (v2's no-delay press/release gesture, two-way talk)
+                           (v2's no-delay press/release gesture, two-way talk), useRovingRadiogroup
+                           (v2 Part 7: arrow-key roving focus, Settings' theme/typeface groups)
 src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width, watch | decide
                            columns; v2 Part 5: Timeline/Transcript tabs, CommsDock; v2 Part 6: named
                            ladder, Confirm Dispatch) + PeripheralLanes/LaneCard (v2 Part 2: other open
@@ -37,7 +38,8 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            inside the focused lane), StatusBar (v2 Part 5: global mic/sirens summary,
                            supersedes VoiceStrip), CameraWorkspace (v2 Part 7: camera view with no
                            incident, raises a lane), ShiftReportModal (v2 Part 7: KPIs, incidents-by-
-                           hour, closed-this-shift table), watch list, closeout/report modals,
+                           hour, closed-this-shift table), SettingsModal (v2 Part 7: theme + typeface,
+                           `domain/appearance.ts`), watch list, closeout/report modals,
                            mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
@@ -128,6 +130,17 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   code before it ever ran live: the table read hours straight off the ISO string (matches every other
   timestamp in the app); the histogram's bucketing first used `Date#getHours()`, which reads the
   machine's local timezone — the two would have silently disagreed. See `docs/V2-BUILD-PLAN.md`'s Part 7
+  notes.
+- Dark/Light theme and three typefaces (IBM Plex default, Inter + JetBrains Mono, Atkinson Hyperlegible)
+  switch via `data-theme`/`data-typeface` on `<html>` (`domain/appearance.ts`), persisted per workstation
+  under the v2 prototype's own `localStorage` keys (`sentry.theme.v2`, `sentry.face`). The light theme's
+  colors aren't invented — `docs-v2/tokens/cortai-noc-v2-tokens.css` turned out to hold Oleg's real,
+  complete token system including a full light theme; each of this project's existing flat color tokens
+  maps onto its nearest equivalent there (documented inline in `tokens.css`), rather than adopting his
+  whole, more granular architecture wholesale. `appearance.ts` guards every `localStorage`/`document`
+  access — `store.ts` reads it at module-eval time to seed UI state, and the whole domain/store layer's
+  unit tests deliberately run in a plain Node environment with neither available; this broke the entire
+  test suite before being caught and fixed, not just new tests. See `docs/V2-BUILD-PLAN.md`'s Part 7
   notes.
 
 

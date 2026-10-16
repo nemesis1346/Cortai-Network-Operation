@@ -43,6 +43,9 @@ export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (
         <button className="btn shortcuts-btn" onClick={() => store.setShiftReportOpen(true)}>
           Shift report
         </button>
+        <button className="btn shortcuts-btn" onClick={() => store.setSettingsOpen(true)}>
+          Settings
+        </button>
         <button className="btn shortcuts-btn" onClick={() => store.setShortcutsOpen(true)}>
           Keyboard shortcuts
         </button>

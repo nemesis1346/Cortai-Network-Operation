@@ -394,3 +394,38 @@ to the clipboard and confirms with a toast; Esc closes the modal.
 
 Typecheck clean, 47/47 tests passing (4 new: ClosedIncidentSummary recorded newest-first on close, KPI
 averages over the closed count, hour bucketing, and the modal's open/close toggle).
+
+**16 Oct — v2 Part 7, Settings (theme + typeface):**
+- `src/domain/appearance.ts` (new): `getStoredTheme`/`getStoredTypeface`/`setTheme`/`setTypeface`/
+  `applyStoredAppearance`. Applies `data-theme`/`data-typeface` on `<html>`, persists under the v2
+  prototype's own `localStorage` keys (`sentry.theme.v2`, `sentry.face`, UI-SPEC.md §7). Every function
+  feature-detects `localStorage`/`document` before touching them — `store.ts` reads it at module-eval
+  time to seed `UiState`, and the domain/store unit tests run in a plain Node environment on purpose
+  (`vite.config.ts`); without the guards, just importing `store.ts` crashed the whole suite, caught and
+  fixed before it reached a browser. `src/domain/appearance.test.ts` is regression coverage for exactly
+  that failure mode.
+- `src/styles/tokens.css`: `:root[data-theme="light"]` and two `:root[data-typeface]` blocks. Light
+  values sourced from `docs-v2/tokens/cortai-noc-v2-tokens.css` — Oleg's real, complete light theme on
+  his own primitive scale — each mapped onto this project's existing flat token names (noted inline per
+  value) rather than adopting his more granular architecture wholesale.
+- `index.html`: Google Fonts link for Inter, JetBrains Mono, Atkinson Hyperlegible Next/Mono, alongside
+  the existing IBM Plex link.
+- `src/hooks/useRovingRadiogroup.ts` (new): WAI-ARIA radio-pattern arrow-key navigation (moves selection
+  and real DOM focus together). Used by Settings' two radiogroups specifically — three other existing
+  radiogroups (Queue's priority filter, CameraWall's status filter, CameraWorkspace's raise-priority
+  selector) stay click-only for now, a separate accessibility cleanup, not folded into this part.
+- `src/components/SettingsModal.tsx` (new), `src/components/TopBar.tsx`: new "Settings" button.
+- `src/store/store.ts`: `UiState.theme`/`typeface`/`settingsOpen`; `setTheme`/`setTypeface` call into
+  `appearance.ts` and patch UI state together, so the Settings radiogroups have something reactive to
+  render as checked (applying the DOM attribute itself isn't React state).
+- `src/main.tsx`: calls `applyStoredAppearance()` before `createRoot(...).render(...)`, so there's no
+  flash of the wrong theme/typeface while React spins up.
+
+Verified live: default state has no `data-theme` attribute (dark, matching the CSS default); switching
+to Light repaints the whole app and matches the new tokens exactly (checked computed `body` background/
+color); arrow-key roving focus moves both the typeface selection and real DOM focus together; the
+computed `font-family` reflects each selection; both settings persist under their exact keys and are
+restored correctly on reload with no flash. Screenshot-checked the light theme across every region of
+the app — legible throughout.
+
+Typecheck clean, 49/49 tests passing (2 new: appearance.ts's Node-safe fallbacks).

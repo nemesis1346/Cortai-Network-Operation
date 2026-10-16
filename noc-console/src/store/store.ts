@@ -1,5 +1,6 @@
 import type { NocClient } from '../api/client'
 import type { AlertState, CameraStatus, IncidentReport, NextStepId, ServerEvent, Snapshot } from '../api/types'
+import * as appearance from '../domain/appearance'
 import { laneLetter, type QueuePriority } from '../domain/rules'
 import { applyEvent } from './reducer'
 
@@ -28,6 +29,12 @@ export interface UiState {
   report: IncidentReport | null
   shortcutsOpen: boolean
   shiftReportOpen: boolean
+  settingsOpen: boolean
+  /** Mirrors what's actually applied to <html> (see `domain/appearance.ts`) so
+   * the Settings radiogroups have something reactive to render as checked —
+   * applying the attribute itself is a DOM side effect, not React state. */
+  theme: appearance.Theme
+  typeface: appearance.Typeface
   toast: { id: number; text: string; kind: 'info' | 'warn' } | null
 }
 
@@ -50,6 +57,9 @@ const initialUi: UiState = {
   report: null,
   shortcutsOpen: false,
   shiftReportOpen: false,
+  settingsOpen: false,
+  theme: appearance.getStoredTheme(),
+  typeface: appearance.getStoredTypeface(),
   toast: null,
 }
 
@@ -294,6 +304,17 @@ export class NocStore {
   }
   setShiftReportOpen(open: boolean): void {
     this.patchUi({ shiftReportOpen: open })
+  }
+  setSettingsOpen(open: boolean): void {
+    this.patchUi({ settingsOpen: open })
+  }
+  setTheme(theme: appearance.Theme): void {
+    appearance.setTheme(theme)
+    this.patchUi({ theme })
+  }
+  setTypeface(face: appearance.Typeface): void {
+    appearance.setTypeface(face)
+    this.patchUi({ typeface: face })
   }
   toast(text: string, kind: 'info' | 'warn' = 'info'): void {
     this.patchUi({ toast: { id: ++this.toastSeq, text, kind } })

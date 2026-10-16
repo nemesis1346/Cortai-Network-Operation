@@ -55,3 +55,64 @@
   --r-3: 8px;
   --r-full: 999px;
 }
+
+/*
+ * v2 SettingsModal (Part 7): Dark/Light theme and three typeface modes,
+ * `data-theme`/`data-typeface` on <html>, persisted per workstation
+ * (UI-SPEC.md §7). Dark stays the default; the OS preference is
+ * intentionally ignored ("control room" — a shift shouldn't look different
+ * because of someone's OS setting).
+ *
+ * Light values aren't invented: sourced from Oleg's actual token deliverable
+ * (docs-v2/tokens/cortai-noc-v2-tokens.css), which has a real light theme
+ * built on its own primitive scale (428 contrast pairs checked by his own
+ * check_contrast.py). That file uses a different, more granular token
+ * architecture (color-surface-panel, color-status-critical-fg, etc. built
+ * from numbered neutral/hue primitives) than this project's simpler flat
+ * set — adopting that whole architecture is a bigger, separate migration
+ * this part doesn't attempt. Instead each of our existing token names maps
+ * onto its nearest equivalent in his file, noted alongside each value, so
+ * the correspondence stays traceable rather than inventing colors as
+ * "close enough": this is Oleg's own light theme, read through this
+ * project's existing naming, not a reinterpretation of it.
+ */
+:root[data-theme="light"] {
+  --ink: #eef2f6; /* their --color-surface-canvas light = --neutral-50 */
+  --panel: #ffffff; /* --color-surface-panel light = --neutral-0 */
+  --panel-2: #f7f9fb; /* --color-surface-sunken light = --neutral-25 */
+  --panel-3: #eef2f6; /* --neutral-50, one step past panel-2 */
+  --surface-raised: #ffffff; /* --color-surface-raised light = --neutral-0; buttons read via border, not fill */
+
+  --line-subtle: #e1e7ee; /* --color-border-subtle light = --neutral-100 */
+  --line: #cbd4de; /* --color-border-default light = --neutral-200 */
+  --line-strong: #718194; /* --color-border-strong — unchanged in their light theme too, --neutral-500 */
+
+  --text-1: #11171f; /* --color-text-primary light = --neutral-950 */
+  --text-2: #435263; /* --color-text-secondary light = --neutral-700 */
+  --text-3: #58687b; /* --color-text-tertiary light = --neutral-600 */
+  --text-4: #8e9dae; /* --color-text-disabled light = --neutral-400 */
+
+  --amber: #82610c; /* --color-status-warning-fg light = --amber-700 */
+  --amber-bg: #fff6d6; /* --color-status-warning-subtle light = --amber-100 */
+  --red: #a3241f; /* --color-status-critical-fg light = --red-700 */
+  --red-bg: #ffe9e7; /* --color-status-critical-subtle light = --red-100 */
+  --green: #186b3e; /* --color-status-ok-fg light = --green-700 */
+  --green-bg: #e3f8ec; /* --color-status-ok-subtle light = --green-100 */
+  --cyan: #136a7b; /* --color-lane-a-fg light = --cyan-700 */
+  --cyan-bg: #e0f7fb; /* --color-lane-a-subtle light = --cyan-100 */
+  --violet: #5438a3; /* --color-lane-b-fg light = --violet-700 */
+  --violet-bg: #f0ebff; /* --color-lane-b-subtle light = --violet-100 */
+}
+
+/* Inter + JetBrains Mono (v2 runtime mode). JetBrains Mono has no 600 weight —
+ * the app only ever requests 400/500, so this doesn't need a fallback rule. */
+:root[data-typeface="inter"] {
+  --font-body: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+/* Atkinson Hyperlegible (v2 runtime mode, accessibility-focused). */
+:root[data-typeface="atkinson"] {
+  --font-body: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono', 'IBM Plex Mono', monospace;
+}

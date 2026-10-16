@@ -25,7 +25,7 @@ the center exists.
 |---|---|
 | Camera view without an incident (CameraWorkspace) | **Done**, 15 Oct |
 | Shift report | **Done**, 16 Oct |
-| Settings (theme/typeface) | Not started |
+| Settings (theme/typeface) | **Done**, 16 Oct |
 | Command palette (⌘K) | Not started |
 | Help (F1) | Not started — content-heavy (search, article tree), lower priority than the others |
 | History (sealed records) | **Blocked** — entangled with the still-open Report/Record merge, `DECISIONS.md` #5 |
@@ -361,3 +361,46 @@ bucketing off the same string slice the table uses.
 updates the KPI row, adds the correct table row, and lights up the matching hour on the histogram; Copy
 summary writes to the clipboard and confirms with a toast; Esc closes the modal. No real bugs found in
 the live pass (the timezone bug above was caught beforehand, while writing the code).
+
+## Part 7 notes (Settings — theme + typeface)
+
+**Light theme isn't invented — it's Oleg's own, read through this project's existing token names.**
+`docs-v2/tokens/cortai-noc-v2-tokens.css` turned out to contain his real, complete design system,
+including a full light theme built on its own numbered primitive scale (428 contrast pairs, his own
+`check_contrast.py`) — not something I expected to find sitting in the reference package. That file's
+architecture (semantic tokens like `--color-status-critical-fg` built from primitives like `--red-700`)
+is more granular than this project's flat token set (`--red`, `--red-bg`, etc.), and adopting it wholesale
+would be a separate, much bigger migration than "add a Settings modal." Instead, each of this project's
+existing ~20 color tokens maps onto its nearest equivalent in his file for the light variant — documented
+inline in `tokens.css` so the correspondence is traceable, not a reinterpretation. Three typefaces (IBM
+Plex default, Inter + JetBrains Mono, Atkinson Hyperlegible) switch via `[data-typeface]`, matching
+`UI-SPEC.md` §7 exactly, including the two `localStorage` key names (`sentry.theme.v2`, `sentry.face`) —
+kept as-is rather than renamed, so a workstation that ever runs the real prototype alongside this build
+shares one stored preference instead of each silently ignoring the other's key.
+
+**Real bug, caught by the test suite before it ever reached a browser**: `store.ts`'s `initialUi` reads
+`appearance.getStoredTheme()`/`getStoredTypeface()` at module-eval time to seed the UI state — and
+`appearance.ts` called `localStorage`/`document` directly, unguarded. The whole domain/store layer runs
+its unit tests in a plain Node environment on purpose (`vite.config.ts`: fast, no jsdom overhead), so
+just *importing* `store.ts` under Node started throwing — breaking every single test in `store.test.ts`,
+not just new ones. Fixed by feature-detecting `localStorage`/`document` in `appearance.ts` and falling
+back to sensible Node-safe defaults (dark/plex, no-op DOM writes); added `appearance.test.ts` as
+regression coverage for exactly this. A reminder that adding a browser-coupled module anywhere the
+store layer touches at module scope needs the same DOM-optional discipline the rest of that layer
+already has — not obvious until the test suite actually caught it.
+
+**Judgment call — only Settings' own two radiogroups got real roving-focus arrow-key support.**
+`UI-SPEC.md` §6 says "Theme and typeface are radiogroups with arrow keys," and three *other* existing
+radiogroups in the app (Queue's P1–P2 filter, CameraWall's status filter, CameraWorkspace's raise-
+priority selector) are click-only today, pre-dating this part. Built a small reusable
+`useRovingRadiogroup` hook and used it for Settings specifically, since that's what this part asked for;
+retrofitting the other three is a real, worthwhile, but separate accessibility cleanup, not something to
+fold into "add Settings" unannounced.
+
+**Verified live**: default theme has no `data-theme` attribute (dark, matching the CSS default); clicking
+Light sets the attribute and repaints the whole app correctly (confirmed `body` background/text color
+match the new tokens exactly); arrow-key roving focus moves both the selection and real DOM focus
+together across the typeface group; the computed `font-family` reflects each selection's full fallback
+chain; both settings persist under their exact spec'd `localStorage` keys and are restored correctly
+before first paint on reload (no flash observed). Screenshot-checked the light theme across every region
+of the app (estate tree, queue, watch list, status bar) — legible throughout, no washed-out elements.
