@@ -27,6 +27,7 @@ export interface UiState {
   closingIncidentId: string | null
   report: IncidentReport | null
   shortcutsOpen: boolean
+  shiftReportOpen: boolean
   toast: { id: number; text: string; kind: 'info' | 'warn' } | null
 }
 
@@ -48,6 +49,7 @@ const initialUi: UiState = {
   closingIncidentId: null,
   report: null,
   shortcutsOpen: false,
+  shiftReportOpen: false,
   toast: null,
 }
 
@@ -289,6 +291,9 @@ export class NocStore {
   }
   setShortcutsOpen(open: boolean): void {
     this.patchUi({ shortcutsOpen: open })
+  }
+  setShiftReportOpen(open: boolean): void {
+    this.patchUi({ shiftReportOpen: open })
   }
   toast(text: string, kind: 'info' | 'warn' = 'info'): void {
     this.patchUi({ toast: { id: ++this.toastSeq, text, kind } })

@@ -40,6 +40,9 @@ export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (
         <span className="health">{cams.total - down} / {cams.total} cameras</span>
         <span className="pill warn">Decode {decoding} of {cams.total}</span>
         {down > 0 && <span className="pill crit">{down} camera issue{down > 1 ? 's' : ''}</span>}
+        <button className="btn shortcuts-btn" onClick={() => store.setShiftReportOpen(true)}>
+          Shift report
+        </button>
         <button className="btn shortcuts-btn" onClick={() => store.setShortcutsOpen(true)}>
           Keyboard shortcuts
         </button>

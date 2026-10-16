@@ -24,7 +24,7 @@ the center exists.
 | Screen | Status |
 |---|---|
 | Camera view without an incident (CameraWorkspace) | **Done**, 15 Oct |
-| Shift report | Not started |
+| Shift report | **Done**, 16 Oct |
 | Settings (theme/typeface) | Not started |
 | Command palette (⌘K) | Not started |
 | Help (F1) | Not started — content-heavy (search, article tree), lower priority than the others |
@@ -334,3 +334,30 @@ lane integrated cleanly with every earlier part (ladder started Armed with the u
 Confirm Dispatch available and undimmed at P1, CommsDock and StatusBar both correct) with no adjustments
 needed anywhere; Esc correctly restored the lane that was focused before camera view opened; the Raise
 button correctly disabled with a hint once three lanes were already open. No real bugs found.
+
+## Part 7 notes (Shift report)
+
+**Needed one genuinely new piece of server state, not just a derived view**: `ShiftStats` already tracked
+running totals (closedAttendedSec, visits, etc.), but `closeIncident` discarded the incident entirely
+after producing its one-off `IncidentReport` — there was no list of what actually got closed this shift
+to build a table or an hour histogram from. Added `Snapshot.closedThisShift: ClosedIncidentSummary[]`,
+appended to on every close, carried in `incident.closed`'s own event payload so the client-side reducer
+(which has no access to the server's internals, only what's on the event) can replay it correctly from a
+buffered-event catch-up the same way every other piece of state already does.
+
+**`ClosedIncidentSummary` stores `severity`/`insidePropertyLine`, not a precomputed priority** — same
+discipline as everywhere else in the app: `derivePriority` is the one place priority gets computed, so
+the summary row keeps its inputs, not an output that could drift out of sync with the formula.
+
+**Real bug caught by my own component, not live testing**: wrote the table's "Closed" column using
+`c.closedAt.slice(11, 16)` (matches every other timestamp display in the app — UTC digits read straight
+off the ISO string) but wrote `closedByHour`'s bucketing with `Date#getHours()`, which reads the
+machine's *local* timezone. The two would have silently disagreed by however many hours off UTC the
+deployment machine sits at — caught by re-reading my own code before running it live, not by a failing
+test (the first test draft used `Date` objects too, so it wouldn't have caught this either). Fixed by
+bucketing off the same string slice the table uses.
+
+**Verified live**: KPIs and the empty-state message correct with nothing closed yet; closing one incident
+updates the KPI row, adds the correct table row, and lights up the matching hour on the histogram; Copy
+summary writes to the clipboard and confirms with a toast; Esc closes the modal. No real bugs found in
+the live pass (the timezone bug above was caught beforehand, while writing the code).

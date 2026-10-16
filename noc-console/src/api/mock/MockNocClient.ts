@@ -3,6 +3,7 @@ import type {
   Alert,
   ApiError,
   CloseIncidentInput,
+  ClosedIncidentSummary,
   DeskPage,
   EvidenceStill,
   Incident,
@@ -64,6 +65,7 @@ export class MockNocClient implements NocClient {
       evidence: [],
       transcript: [],
       stats: { closedAttendedSec: 0, closedUnattendedSec: 0, visits: 0, notes: 0 },
+      closedThisShift: [],
       micOwnerIncidentId: null,
       focusIncidentId: null,
       pages: [],
@@ -345,11 +347,19 @@ export class MockNocClient implements NocClient {
     const report = this.buildReport(inc)
     this.transcript('sys', `Incident closed · ${this.siteName(inc)} · closed with memo`, inc.id)
 
-    this.snap.incidents = this.snap.incidents.filter((i) => i.id !== inc.id)
     const alert = this.snap.alerts.find((a) => a.id === inc.alertId)
+    const summary: ClosedIncidentSummary = {
+      incidentId: inc.id, siteId: inc.siteId, alertTitle: alert?.title ?? 'Incident',
+      severity: alert?.severity ?? 3, insidePropertyLine: alert?.insidePropertyLine ?? false,
+      openedAt: inc.openedAt, closedAt: new Date(nowMs).toISOString(),
+      attendedSec: inc.attendedSec, totalSec: age, memo: inc.memo ?? '', nextSteps: inc.nextSteps ?? [],
+    }
+    this.snap.closedThisShift = [summary, ...this.snap.closedThisShift]
+
+    this.snap.incidents = this.snap.incidents.filter((i) => i.id !== inc.id)
     if (alert) this.setAlertState(alert, 'held')
     const stats: ShiftStats = { ...this.snap.stats }
-    this.emit({ type: 'incident.closed', incidentId: inc.id, stats })
+    this.emit({ type: 'incident.closed', incidentId: inc.id, stats, summary })
 
     if (this.snap.focusIncidentId === inc.id) {
       this.snap.focusIncidentId = null

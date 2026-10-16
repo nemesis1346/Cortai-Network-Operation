@@ -370,3 +370,27 @@ correctly disabled with a hint once three lanes were open. No real bugs found.
 Typecheck clean, 43/43 tests passing (6 new: camera view clears focus, switching cameras doesn't
 re-touch it, Esc restores the previous lane, closing with nothing to return to doesn't crash, each
 priority raises exactly, and the lane-limit refusal).
+
+**16 Oct — v2 Part 7, Shift report (ShiftReportModal):**
+- `src/api/types.ts`: new `ClosedIncidentSummary` (incidentId, siteId, alertTitle, severity,
+  insidePropertyLine, openedAt, closedAt, attendedSec, totalSec, memo, nextSteps) and
+  `Snapshot.closedThisShift: ClosedIncidentSummary[]`. `incident.closed`'s ServerEvent payload gained a
+  `summary` field so the client-side reducer can replay it from buffered events like everything else.
+- `src/api/mock/MockNocClient.ts#closeIncident`: builds the summary right before discarding the incident,
+  prepends it to `closedThisShift`, includes it on the emitted event.
+- `src/store/reducer.ts`: `incident.closed` now also prepends `e.summary` to `closedThisShift`.
+- `src/store/selectors.ts`: new `shiftReportKpis` (closed count, averages computed over that count, not
+  a running mean — `ShiftStats`' totals divided fresh each time) and `closedByHour` (buckets by hour
+  read straight off the ISO string, not `Date#getHours()` — see the timezone bug note in
+  `V2-BUILD-PLAN.md`'s Part 7 notes).
+- `src/components/ShiftReportModal.tsx` (new): KPIs + hour histogram fixed, only `.sr-table-wrap`
+  scrolls. Copy summary writes a plain-text recap to the clipboard, toasts on success/failure.
+- `src/components/TopBar.tsx`: new "Shift report" button next to "Keyboard shortcuts".
+- `src/store/store.ts`: `UiState.shiftReportOpen` + `setShiftReportOpen`.
+
+Verified live: KPIs and the empty-state message correct with nothing closed; closing an incident updates
+the KPI row, adds the correct table row, lights the matching hour on the histogram; Copy summary writes
+to the clipboard and confirms with a toast; Esc closes the modal.
+
+Typecheck clean, 47/47 tests passing (4 new: ClosedIncidentSummary recorded newest-first on close, KPI
+averages over the closed count, hour bucketing, and the modal's open/close toggle).

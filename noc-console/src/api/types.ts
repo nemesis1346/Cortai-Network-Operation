@@ -302,6 +302,26 @@ export interface ShiftStats {
   notes: number
 }
 
+/**
+ * v2 ShiftReportModal: "closed-this-shift table", KPIs and the by-hour
+ * histogram all derive from this. Stores severity/insidePropertyLine, not a
+ * precomputed priority — same reason nothing else in the app stores one:
+ * domain/rules.ts#derivePriority is the one place priority gets computed.
+ */
+export interface ClosedIncidentSummary {
+  incidentId: string
+  siteId: string
+  alertTitle: string
+  severity: AlertSeverity
+  insidePropertyLine: boolean
+  openedAt: ISODate
+  closedAt: ISODate
+  attendedSec: number
+  totalSec: number
+  memo: string
+  nextSteps: NextStepId[]
+}
+
 /* ---------- Snapshot + events ---------- */
 
 export interface Snapshot {
@@ -316,6 +336,8 @@ export interface Snapshot {
   evidence: EvidenceStill[]
   transcript: TranscriptLine[]
   stats: ShiftStats
+  /** v2 ShiftReportModal's table/KPIs/histogram source. Newest first. */
+  closedThisShift: ClosedIncidentSummary[]
   /** Incident that currently owns the microphone. */
   micOwnerIncidentId: string | null
   /** Incident the operator is focused on. */
@@ -337,7 +359,7 @@ export interface SpeakerState {
 export type ServerEvent =
   | { type: 'alert.upsert'; alert: Alert }
   | { type: 'incident.upsert'; incident: Incident }
-  | { type: 'incident.closed'; incidentId: string; stats: ShiftStats }
+  | { type: 'incident.closed'; incidentId: string; stats: ShiftStats; summary: ClosedIncidentSummary }
   | { type: 'ladder.updated'; ladder: LadderState }
   | { type: 'ledger.added'; event: LedgerEvent }
   | { type: 'evidence.added'; still: EvidenceStill }

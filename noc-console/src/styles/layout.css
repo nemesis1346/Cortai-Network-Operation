@@ -479,6 +479,28 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .modal.confirm p { font-size: var(--fs-body-lg); }
 .modal.confirm p:first-of-type { font-weight: 500; color: var(--text-1); }
 .modal.report { width: min(680px, 100%); }
+.modal.shift-report { width: min(760px, 100%); }
+
+/* ShiftReportModal (v2 Part 7): KPIs + hour histogram stay fixed, only
+   .sr-table-wrap scrolls (spec: "only the table scrolls"). */
+.sr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) 0; flex-shrink: 0; }
+.sr-kpi { display: flex; flex-direction: column; gap: 2px; }
+.sr-kpi b { font-size: var(--fs-h); font-weight: 600; }
+.sr-kpi span { font-size: var(--fs-micro); color: var(--text-3); }
+.sr-hours { padding: var(--sp-3) var(--sp-4) 0; flex-shrink: 0; }
+.sr-hours-row { display: flex; align-items: flex-end; gap: 1px; height: 36px; margin-top: var(--sp-2); }
+.sr-hours-row i { flex: 1; display: block; background: var(--cyan-bg); border-radius: 1px 1px 0 0; }
+.sr-hours-row i.hot { background: var(--cyan); }
+.sr-table-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--line-subtle); }
+.sr-table-wrap::-webkit-scrollbar { width: 8px; }
+.sr-table-wrap::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+.sr-table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
+.sr-table th { text-align: left; font-size: var(--fs-micro); color: var(--text-3); text-transform: uppercase;
+  letter-spacing: .06em; padding: 4px 8px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--panel); }
+.sr-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle); }
 
 .modal-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line); flex-shrink: 0; }

@@ -16,7 +16,12 @@ export function applyEvent(s: Snapshot, e: ServerEvent): Snapshot {
     case 'incident.upsert':
       return { ...s, incidents: upsert(s.incidents, e.incident) }
     case 'incident.closed':
-      return { ...s, incidents: s.incidents.filter((i) => i.id !== e.incidentId), stats: e.stats }
+      return {
+        ...s,
+        incidents: s.incidents.filter((i) => i.id !== e.incidentId),
+        stats: e.stats,
+        closedThisShift: [e.summary, ...s.closedThisShift],
+      }
     case 'ladder.updated':
       return {
         ...s,

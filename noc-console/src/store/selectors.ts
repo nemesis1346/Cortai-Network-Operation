@@ -57,6 +57,37 @@ export function mostEscalatedIncident(s: Snapshot, nowMs: number): Incident | nu
   return candidates[0] ?? null
 }
 
+/** v2 ShiftReportModal's KPI row. Averages are over closedThisShift's count,
+ * not a running mean kept server-side — cheap to recompute, one source of truth. */
+export interface ShiftReportKpis {
+  closedCount: number
+  avgAttendedSec: number
+  avgUnattendedSec: number
+  visits: number
+  notes: number
+}
+export function shiftReportKpis(s: Snapshot): ShiftReportKpis {
+  const n = s.closedThisShift.length
+  return {
+    closedCount: n,
+    avgAttendedSec: n ? Math.round(s.stats.closedAttendedSec / n) : 0,
+    avgUnattendedSec: n ? Math.round(s.stats.closedUnattendedSec / n) : 0,
+    visits: s.stats.visits,
+    notes: s.stats.notes,
+  }
+}
+
+/** Count of incidents closed per hour-of-day (0-23), for the "incidents by hour" histogram.
+ * Reads the hour straight off the ISO string (matches every other timestamp
+ * display in the app, e.g. this modal's own table rows) rather than
+ * `Date#getHours()`, which would read it in the machine's local timezone —
+ * inconsistent with the rest of the UI and a source of test flakiness. */
+export function closedByHour(s: Snapshot): number[] {
+  const counts = new Array(24).fill(0) as number[]
+  for (const c of s.closedThisShift) counts[Number(c.closedAt.slice(11, 13))]!++
+  return counts
+}
+
 export type LedgerGroup = { kind: 'single'; event: LedgerEvent } | { kind: 'stills'; events: LedgerEvent[] }
 
 /**

@@ -36,8 +36,9 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            CameraRibbon), CommsDock (v2 Part 5: mic routing + waveform + last line,
                            inside the focused lane), StatusBar (v2 Part 5: global mic/sirens summary,
                            supersedes VoiceStrip), CameraWorkspace (v2 Part 7: camera view with no
-                           incident, raises a lane), watch list, closeout/report modals, mic-confirm
-                           dialog, toasts, shortcuts
+                           incident, raises a lane), ShiftReportModal (v2 Part 7: KPIs, incidents-by-
+                           hour, closed-this-shift table), watch list, closeout/report modals,
+                           mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -118,5 +119,15 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   Opening camera view reuses `setFocus(null)` wholesale for "breaks attention for all lanes" (STATES.md
   §2) — the attention model already keyed entirely off `focusIncidentId`, so no new escalation logic was
   needed. See `docs/V2-BUILD-PLAN.md`'s Part 7 notes.
+- Shift report needed one genuinely new piece of server state: `Snapshot.closedThisShift`, a list of
+  `ClosedIncidentSummary` appended to on every close. `ShiftStats` only ever tracked running totals;
+  `closeIncident` fully discarded the incident after its one-off report, so there was nothing to build a
+  table or an hour histogram from. Carried in `incident.closed`'s own event payload, same as everything
+  else the client-side reducer replays. Stores `severity`/`insidePropertyLine`, not a precomputed
+  priority, for the same reason nothing else in the app does. Caught and fixed a timezone bug in my own
+  code before it ever ran live: the table read hours straight off the ISO string (matches every other
+  timestamp in the app); the histogram's bucketing first used `Date#getHours()`, which reads the
+  machine's local timezone — the two would have silently disagreed. See `docs/V2-BUILD-PLAN.md`'s Part 7
+  notes.
 
 

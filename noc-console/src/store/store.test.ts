@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockNocClient } from '../api/mock/MockNocClient'
 import { derivePriority } from '../domain/rules'
-import { alertCounts } from './selectors'
+import { alertCounts, closedByHour, shiftReportKpis } from './selectors'
 import { NocStore } from './store'
 
 async function boot() {
@@ -321,5 +321,68 @@ describe('camera view and raising a lane without an AI alert (v2 Part 7)', () =>
     await store.raiseIncident('07', 'P1')
     expect(server(store).incidents.length).toBe(3)
     expect(store.getState().ui.toast?.text).toMatch(/three lanes/i)
+  })
+})
+
+describe('shift report (v2 Part 7)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('closing an incident records a ClosedIncidentSummary, newest first', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    store.openCloseout(id)
+    await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', ['report'])
+    const closed = server(store).closedThisShift
+    expect(closed.length).toBe(1)
+    expect(closed[0]!.incidentId).toBe(id)
+    expect(closed[0]!.memo).toMatch(/Same white sedan/)
+    expect(derivePriority(closed[0]!)).toMatch(/^P[1-4]$/)
+
+    await store.openIncident('a2')
+    const id2 = server(store).incidents[0]!.id
+    store.openCloseout(id2)
+    await store.submitCloseout('A second, unrelated closing memo for this test.', [])
+    expect(server(store).closedThisShift.length).toBe(2)
+    expect(server(store).closedThisShift[0]!.incidentId).not.toBe(id) // newest first
+  })
+
+  it('KPIs average over the closed count, not a running total', async () => {
+    const store = await boot()
+    expect(shiftReportKpis(server(store)).closedCount).toBe(0)
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    vi.advanceTimersByTime(10_000)
+    store.openCloseout(id)
+    await store.submitCloseout('First closing memo, long enough to pass the minimum.', [])
+    const kpis = shiftReportKpis(server(store))
+    expect(kpis.closedCount).toBe(1)
+    expect(kpis.notes).toBe(server(store).stats.notes)
+  })
+
+  it('buckets closed incidents by the hour they closed', async () => {
+    const store = await boot()
+    vi.setSystemTime(new Date('2026-01-01T03:00:00Z'))
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    store.openCloseout(id)
+    await store.submitCloseout('Closing memo at three in the morning, long enough.', [])
+    const hours = closedByHour(server(store))
+    expect(hours[3]).toBe(1)
+    expect(hours.reduce((a, b) => a + b, 0)).toBe(1)
+  })
+
+  it('setShiftReportOpen toggles the modal', async () => {
+    const store = await boot()
+    expect(store.getState().ui.shiftReportOpen).toBe(false)
+    store.setShiftReportOpen(true)
+    expect(store.getState().ui.shiftReportOpen).toBe(true)
+    store.setShiftReportOpen(false)
+    expect(store.getState().ui.shiftReportOpen).toBe(false)
   })
 })

@@ -4,6 +4,7 @@ import { EscalationBar } from './components/EscalationBar'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
 import { Center, LeftRail, RightRail } from './components/Regions'
 import { ReportModal } from './components/ReportModal'
+import { ShiftReportModal } from './components/ShiftReportModal'
 import { ShortcutsLegend } from './components/ShortcutsLegend'
 import { StatusBar } from './components/StatusBar'
 import { Toasts } from './components/Toasts'
@@ -35,6 +36,7 @@ export default function App() {
       </div>
       <CloseoutModal />
       <ReportModal />
+      <ShiftReportModal />
       <MicConfirmDialog />
       <ShortcutsLegend />
       <Toasts />
