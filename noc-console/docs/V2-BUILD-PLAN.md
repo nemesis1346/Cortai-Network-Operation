@@ -17,7 +17,7 @@ the center exists.
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
-| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | In progress — too large for one pass, broken out below |
+| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | Paused, 16 Oct — 4 of 7 sub-parts shipped, stopped here by choice (see below) |
 
 ### Part 7 sub-parts
 
@@ -27,7 +27,7 @@ the center exists.
 | Shift report | **Done**, 16 Oct |
 | Settings (theme/typeface) | **Done**, 16 Oct |
 | Command palette (⌘K) | **Done**, 16 Oct |
-| Help (F1) | Not started — content-heavy (search, article tree), lower priority than the others |
+| Help (F1) | Paused, 16 Oct — content-heavy (search, article tree), stopped here by choice, not blocked |
 | History (sealed records) | **Blocked** — entangled with the still-open Report/Record merge, `DECISIONS.md` #5 |
 | Sign-in / lock / connection-lost | **Blocked** — needs the Lionston OTP flow, `DECISIONS.md` the auth blocker |
 
