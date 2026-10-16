@@ -39,7 +39,8 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            supersedes VoiceStrip), CameraWorkspace (v2 Part 7: camera view with no
                            incident, raises a lane), ShiftReportModal (v2 Part 7: KPIs, incidents-by-
                            hour, closed-this-shift table), SettingsModal (v2 Part 7: theme + typeface,
-                           `domain/appearance.ts`), watch list, closeout/report modals,
+                           `domain/appearance.ts`), CommandPalette (v2 Part 7: Ctrl/⌘+K, search lanes/
+                           queue/actions), watch list, closeout/report modals,
                            mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
@@ -142,5 +143,13 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   unit tests deliberately run in a plain Node environment with neither available; this broke the entire
   test suite before being caught and fixed, not just new tests. See `docs/V2-BUILD-PLAN.md`'s Part 7
   notes.
+- Command palette (Ctrl/⌘+K) works even from inside a text field — every *other* global hotkey is
+  suppressed while typing (audit C1), but this one follows how real command palettes conventionally
+  behave instead. "Confirm dispatch" is the only command marked destructive (double-Enter to confirm,
+  v2 COMPONENTS.md#CommandPalette): it's the one command that fires a real, irreversible effect from a
+  single keystroke rather than just opening an existing confirm surface, so it got its own gate that
+  calls `confirmDispatch` directly rather than trying to trigger LaneWorkspace's own dialog remotely.
+  No `scope: LaneId | 'all'` tab from the full spec — the "Lanes" group already covers jumping to any
+  lane directly at this app's 3-lane ceiling. See `docs/V2-BUILD-PLAN.md`'s Part 7 notes.
 
 

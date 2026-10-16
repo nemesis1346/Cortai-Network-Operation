@@ -429,3 +429,29 @@ restored correctly on reload with no flash. Screenshot-checked the light theme a
 the app — legible throughout.
 
 Typecheck clean, 49/49 tests passing (2 new: appearance.ts's Node-safe fallbacks).
+
+**16 Oct — v2 Part 7, Command palette (Ctrl/⌘+K):**
+- `src/hooks/useHotkeys.ts`: Ctrl/⌘+K handled before the broad modifier-key early-return and before
+  `isTypingTarget`, so it works from inside a text field (unlike every other global hotkey). Always
+  calls `preventDefault()` to stop the browser's own address-bar-search binding; only actually toggles
+  the palette when no genuinely blocking flow (closeout, report, mic confirm) is active.
+- `src/components/CommandPalette.tsx` (new): builds command groups (Lanes, Focused lane, Queue,
+  Navigation) from live server state each render — no new domain/store logic, it's read-only over what
+  already exists. "Confirm dispatch" is the one command marked `destructive`; first Enter arms it
+  (second Enter required), calling `store.confirmDispatch` directly rather than through
+  `LaneWorkspace`'s own on-screen dialog, since the palette is a second entry point that dialog's local
+  state can't reach.
+- `src/store/store.ts`: `UiState.paletteOpen` + `setPaletteOpen`.
+- `src/components/ShortcutsLegend.tsx`: new "Ctrl/⌘ + K" entry.
+- No new `NocClient` methods — every command calls an existing store method.
+
+Verified live: Ctrl+K opens with focus in the input; command groups are conditional and correct (no
+Lanes/Focused-lane group with nothing open, both appear once a lane exists); query filtering; Enter runs
+a non-destructive command and closes the palette; Confirm Dispatch's double-Enter gate holds the ladder
+untouched after the first Enter, fires only on the second; Ctrl+K opens correctly from inside a focused
+text input without losing its draft; the underlying lane's state was unaffected by the palette opening
+and closing around it.
+
+Typecheck clean, 49/49 tests passing (no new tests this part — the command-building and keyboard-nav
+logic live entirely in the component, same precedent as the queue/wall filters in Parts 3-4; verified
+live instead).

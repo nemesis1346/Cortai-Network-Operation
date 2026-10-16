@@ -26,7 +26,7 @@ the center exists.
 | Camera view without an incident (CameraWorkspace) | **Done**, 15 Oct |
 | Shift report | **Done**, 16 Oct |
 | Settings (theme/typeface) | **Done**, 16 Oct |
-| Command palette (⌘K) | Not started |
+| Command palette (⌘K) | **Done**, 16 Oct |
 | Help (F1) | Not started — content-heavy (search, article tree), lower priority than the others |
 | History (sealed records) | **Blocked** — entangled with the still-open Report/Record merge, `DECISIONS.md` #5 |
 | Sign-in / lock / connection-lost | **Blocked** — needs the Lionston OTP flow, `DECISIONS.md` the auth blocker |
@@ -404,3 +404,43 @@ together across the typeface group; the computed `font-family` reflects each sel
 chain; both settings persist under their exact spec'd `localStorage` keys and are restored correctly
 before first paint on reload (no flash observed). Screenshot-checked the light theme across every region
 of the app (estate tree, queue, watch list, status bar) — legible throughout, no washed-out elements.
+
+## Part 7 notes (Command palette)
+
+**Judgment call — no `scope: LaneId | 'all'` tab.** The spec's prop table lists one, but with a 3-lane
+cap, the "Lanes" group already lets you jump to any lane directly from the full list, and "Focused lane"
+actions are already inherently scoped to the one lane that's focused — there's only ever one. A dedicated
+scope tab felt like Figma affordance carried over from a design meant to scale further than this app's
+own 3-lane ceiling ever will; added complexity without matching value here. Flagged as a deliberate
+simplification, not a missed requirement, in case it matters once the real interaction model lands.
+
+**"Destructive commands require Enter twice" needed a real decision about where authority lives.**
+Confirm Dispatch already has its own on-screen confirm dialog (Part 6), reachable by clicking the lane's
+own button. The palette is a *second*, independent entry point that can't reach into that dialog's local
+component state — so it needed its own safety gate, which is exactly what the spec's double-Enter
+instruction is for. Implemented as: first Enter arms the command (shows "Press Enter again to confirm",
+the ladder stays untouched), second Enter actually calls `confirmDispatch` directly, bypassing
+LaneWorkspace's dialog entirely rather than trying to trigger it remotely. Every other command in the set
+either reversible or itself just opens an existing confirm surface (Close incident opens the closeout
+flow, it doesn't close anything by itself) — Confirm Dispatch is genuinely the only one that fires a
+real, irreversible effect straight from a single keystroke, which is why it's the only one marked
+`destructive` in `buildCommands`.
+
+**Ctrl/⌘+K intentionally works from inside a text field** (the note field, closeout memo, anywhere) —
+every other global hotkey in the app is deliberately suppressed while typing (audit C1), but real
+command palettes (Slack, Linear, GitHub) conventionally work everywhere, and that's the expectation this
+follows. It still won't open on top of a genuinely blocking flow (closeout, report, mic confirm) — the
+browser's own Ctrl/⌘+K (address-bar search) is suppressed either way so the keystroke never leaks out to
+the OS/browser even when the palette itself doesn't open.
+
+**No dedicated toolbar button.** Shift report/Settings/Keyboard shortcuts all got a TopBar button; the
+palette didn't, on purpose — it's meant to be keyboard-first by design, and `ShortcutsLegend` already
+documents the key. Adding a button mostly for pointer-discoverability would cut against what makes a
+command palette fast in the first place; flagged as the deliberate choice it is, not an oversight.
+
+**Verified live**: Ctrl+K opens the palette with focus landing in its input; groups are conditional and
+correct (no Lanes/Focused-lane group with nothing open; both appear once a lane exists); typing filters
+correctly; Enter runs a non-destructive command (Shift report) and closes the palette; Confirm Dispatch's
+double-Enter gate holds the ladder untouched after the first Enter and only fires on the second; Ctrl+K
+opens correctly from inside a focused text input without losing its draft text; the underlying lane's
+state (note draft, ladder) was unaffected by opening/closing the palette around it. No real bugs found.

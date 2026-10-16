@@ -487,6 +487,28 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .settings-field + .settings-field { margin-top: var(--sp-3); }
 .settings-field .seg { padding: 0; }
 
+/* CommandPalette (v2 Part 7): Ctrl/⌘+K. Positioned high, not centred — a
+   palette that jumps to the middle of a 1920px control-room display reads
+   as a modal interrupting the view, not a quick jump tool. */
+.modal-backdrop:has(.palette) { align-items: flex-start; padding-top: 12vh; }
+.palette { width: min(560px, 100%); max-height: 60vh; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r-3);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .5); overflow: hidden; }
+.palette-input { width: 100%; height: 48px; padding: 0 var(--sp-4); border: 0; border-bottom: 1px solid var(--line);
+  background: transparent; color: var(--text-1); font-size: var(--fs-body-lg); font-family: inherit; flex-shrink: 0; }
+.palette-input:focus { outline: none; }
+.palette-results { overflow-y: auto; padding: var(--sp-2); scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--line-subtle); }
+.palette-results .empty { padding: var(--sp-3); }
+.palette-group-h { display: block; padding: var(--sp-2) var(--sp-2) 4px; font-size: var(--fs-micro); color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .06em; }
+.palette-item { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); width: 100%;
+  padding: var(--sp-2); border-radius: var(--r-2); text-align: left; }
+.palette-item.active { background: var(--panel-3); }
+.palette-item-label { font-size: var(--fs-body); }
+.palette-item-hint { flex-shrink: 0; font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.palette-item-hint.warn { color: var(--red); font-weight: 500; }
+.palette-item.armed { background: var(--red-bg); }
+
 /* ShiftReportModal (v2 Part 7): KPIs + hour histogram stay fixed, only
    .sr-table-wrap scrolls (spec: "only the table scrolls"). */
 .sr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3);

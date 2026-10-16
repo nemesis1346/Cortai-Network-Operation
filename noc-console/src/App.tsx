@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CloseoutModal } from './components/CloseoutModal'
+import { CommandPalette } from './components/CommandPalette'
 import { EscalationBar } from './components/EscalationBar'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
 import { Center, LeftRail, RightRail } from './components/Regions'
@@ -39,6 +40,7 @@ export default function App() {
       <ReportModal />
       <ShiftReportModal />
       <SettingsModal />
+      <CommandPalette />
       <MicConfirmDialog />
       <ShortcutsLegend />
       <Toasts />

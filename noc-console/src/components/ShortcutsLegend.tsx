@@ -8,6 +8,7 @@ const SHORTCUTS: [string, string][] = [
   ['R', 'Resume a halted ladder, from where it paused'],
   ['K', 'Acknowledge the unattended-lane escalation bar'],
   ['W', 'Open or close the camera wall'],
+  ['Ctrl/⌘ + K', 'Command palette — search lanes, queue and actions'],
   ['Esc', 'Close the open dialog, keeping any memo you typed'],
   ['?', 'Show this legend'],
 ]
