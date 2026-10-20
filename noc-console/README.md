@@ -20,7 +20,11 @@ npm run typecheck
 src/api/types.ts          Proposed backend contract (entities, ServerEvent, commands)
 src/api/client.ts         NocClient interface, the only door between UI and data
 src/api/mock/             MockNocClient (simulates ladder, evidence, paging) + seed data
-src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping
+src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping,
+                           appearance (theme/typeface persistence), help (types, context-sensitive
+                           article picker, search) + helpRender.tsx (the Markdown-subset renderer)
+public/help/               v2 Part 7: real Help content — help.json (41 articles, converted from
+                           Oleg's own help.js verbatim) + img/ (27 real screenshots), loaded lazily
 src/store/                reducer (ServerEvent -> state), NocStore (commands + UI state), selectors, React context
 src/hooks/                useNow (1s timer, isolated), useHotkeys (ignores typing), useMediaQuery,
                            useHoldToArm (v2's 600ms hold-to-arm gesture, siren/strobe), useHoldToTalk
@@ -40,8 +44,9 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            incident, raises a lane), ShiftReportModal (v2 Part 7: KPIs, incidents-by-
                            hour, closed-this-shift table), SettingsModal (v2 Part 7: theme + typeface,
                            `domain/appearance.ts`), CommandPalette (v2 Part 7: Ctrl/⌘+K, search lanes/
-                           queue/actions), watch list, closeout/report modals,
-                           mic-confirm dialog, toasts, shortcuts
+                           queue/actions), HelpModal (v2 Part 7: F1, real content from public/help/,
+                           search + tree + article + figure lightbox), watch list, closeout/report
+                           modals, mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 
@@ -151,5 +156,16 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   calls `confirmDispatch` directly rather than trying to trigger LaneWorkspace's own dialog remotely.
   No `scope: LaneId | 'all'` tab from the full spec — the "Lanes" group already covers jumping to any
   lane directly at this app's 3-lane ceiling. See `docs/V2-BUILD-PLAN.md`'s Part 7 notes.
+- Help (F1) ships Oleg's real content — `docs-v2/prototype/help/help.js` turned out to be a complete,
+  real deliverable (41 articles, 27 screenshots, 4 diagrams), not a spec to write content against.
+  Converted to `public/help/help.json` and loaded lazily on first open, exactly per `docs-v2/docs/
+  HELP.md`'s own "loading contract for the React build." Shipped verbatim rather than edited to match
+  every judgment call this build has made — a handful of articles describe screens this build doesn't
+  have yet (sign-in, lock, connection-lost, History) or a "T" take-next key this build never bound;
+  `helpContext()` (STATES.md §10's priority order) simply never routes to the former, and both are
+  flagged for Oleg in `docs/V2-BUILD-PLAN.md`'s Part 7 notes rather than silently rewritten. The 4
+  diagrams' inline SVGs use a third CSS-variable naming scheme (`--c-*`, distinct from both this
+  project's tokens and Oleg's Settings-era `--color-*` ones) — aliased on `.help-diagram` rather than
+  rewriting real SVG markup, same reasoning as not rewriting the article text.
 
 

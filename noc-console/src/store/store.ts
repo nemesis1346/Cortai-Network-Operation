@@ -31,6 +31,7 @@ export interface UiState {
   shiftReportOpen: boolean
   settingsOpen: boolean
   paletteOpen: boolean
+  helpOpen: boolean
   /** Mirrors what's actually applied to <html> (see `domain/appearance.ts`) so
    * the Settings radiogroups have something reactive to render as checked —
    * applying the attribute itself is a DOM side effect, not React state. */
@@ -60,6 +61,7 @@ const initialUi: UiState = {
   shiftReportOpen: false,
   settingsOpen: false,
   paletteOpen: false,
+  helpOpen: false,
   theme: appearance.getStoredTheme(),
   typeface: appearance.getStoredTypeface(),
   toast: null,
@@ -312,6 +314,9 @@ export class NocStore {
   }
   setPaletteOpen(open: boolean): void {
     this.patchUi({ paletteOpen: open })
+  }
+  setHelpOpen(open: boolean): void {
+    this.patchUi({ helpOpen: open })
   }
   setTheme(theme: appearance.Theme): void {
     appearance.setTheme(theme)

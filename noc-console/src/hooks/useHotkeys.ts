@@ -7,11 +7,11 @@ import type { NocStore } from '../store/store'
  * A/B/C focus a lane, M toggles the mic on the focused lane, H halts its ladder,
  * R resumes it, K acknowledges whichever lane's unattended escalation is
  * currently showing in the EscalationBar, W toggles the camera wall, Ctrl/⌘+K
- * opens the command palette (v2 UI-SPEC.md §6). Never fires while typing
- * (audit C1), with a modifier held, or while a modal is open — except the
- * palette itself, which (like real command palettes generally) opens even
- * from inside a text field; it still won't stack over a genuinely blocking
- * flow (closeout, report, mic confirm).
+ * opens the command palette, F1 opens Help (v2 UI-SPEC.md §6, STATES.md §10).
+ * Never fires while typing (audit C1), with a modifier held, or while a modal
+ * is open — except the palette and Help, which (like real command palettes
+ * and most apps' own help key) open even from inside a text field; neither
+ * stacks over a genuinely blocking flow (closeout, report, mic confirm).
  */
 export function useHotkeys(store: NocStore): void {
   useEffect(() => {
@@ -21,6 +21,13 @@ export function useHotkeys(store: NocStore): void {
         const { ui } = store.getState()
         if (ui.closingIncidentId || ui.report || ui.micConfirm) return
         store.setPaletteOpen(!ui.paletteOpen)
+        return
+      }
+      if (!e.repeat && e.key === 'F1') {
+        e.preventDefault() // browsers rarely do anything with F1 themselves, but never let it leak out
+        const { ui } = store.getState()
+        if (ui.closingIncidentId || ui.report || ui.micConfirm) return
+        store.setHelpOpen(!ui.helpOpen)
         return
       }
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return

@@ -455,3 +455,53 @@ and closing around it.
 Typecheck clean, 49/49 tests passing (no new tests this part — the command-building and keyboard-nav
 logic live entirely in the component, same precedent as the queue/wall filters in Parts 3-4; verified
 live instead).
+
+**20 Oct — v2 Part 7, Help (F1):**
+- `public/help/help.json` (new, ~80KB): converted verbatim from `docs-v2/prototype/help/help.js` via a
+  one-off Node script (`window` stub + `eval` + `JSON.stringify`) — 41 articles, 7 TOC sections, 27
+  figures, 4 diagrams. `public/help/img/*.webp` (new, 27 files, ~824KB): the real screenshots, copied
+  as-is. Both ship as static assets per `docs-v2/docs/HELP.md`'s "loading contract for the React build."
+- `src/domain/help.ts` (new): `HelpContent`/`HelpArticle`/`HelpFigure`/`HelpDiagram`/`HelpTocSection`
+  types matching the JSON exactly (figure spots stay 5-element tuples, not objects). `searchHelp`:
+  "all terms must match," weighted title(×6)/keywords(×4)/summary(×2)/body(×1), per HELP.md.
+  `helpContext(ctx)`: STATES.md §10's priority order, taking plain booleans/ids rather than `UiState` —
+  `domain/` stays below `store/` in this project's layering, so the caller (the modal) assembles the
+  primitives from `ui`/`server`. `flatArticleOrder`/`prevNextArticle` for tree-order navigation.
+- `src/domain/helpRender.tsx` (new): hand-rolled renderer for help.js's documented Markdown subset
+  (headings → "On this page" entries, paragraphs, bold/italic, `- `/`1. ` lists, `| |` tables, 5 callout
+  types, `{{fig:id}}`/`{{diagram:id}}`, `[[Key+Key]]`, `[text](#id|url)`, and 5 inline UI tokens —
+  `{{lane:A}}`/`{{prio:P1}}`/`{{dot:live}}`/`{{badge:kind|label}}`/`{{icon:…}}`, the last never actually
+  used in the real content but supported defensively). Builds React elements directly; the one
+  `dangerouslySetInnerHTML` use is the diagrams' own inline SVG, justified inline as static
+  developer-authored content, not live input.
+- `src/hooks/useHelpContent.ts` (new): module-level cache + in-flight promise, fetched once per page
+  load regardless of how many times Help opens/closes; `enabled` gates the fetch to only fire once Help
+  is actually opened. Loading/ready/error states per HELP.md ("skeleton... 'Help could not load' + Try
+  again... the console never depends on it").
+- `src/components/HelpModal.tsx` (new): search (`/` focuses it, Enter opens the top hit), contents tree
+  (click always works; Up/Down roving focus, Right/Left expand/collapse — no Home/End, flagged scope
+  cut), one article at a time (breadcrumb, type badge, title that receives focus, summary, "On this
+  page" at 3+ H2s, body, Related, Previous/Next in tree order, meta line), figure lightbox (numbered
+  hotspot markers + matching legend, Esc closes it before the modal itself).
+- `src/hooks/useHotkeys.ts`: F1 handled the same way as Ctrl/⌘+K — works from inside a text field,
+  doesn't stack over a genuinely blocking flow, always `preventDefault()`s.
+- `src/store/store.ts`: `UiState.helpOpen` + `setHelpOpen`.
+- `src/components/TopBar.tsx`: new "Help" button. `src/components/CommandPalette.tsx`: one "Help"
+  command (not all 41 articles — flagged simplification); renamed the old `help` command id to
+  `shortcuts` to free it up.
+- `src/styles/layout.css`: full `.help-*` rule set, including a `--c-*` alias block scoped to
+  `.help-diagram` mapping the 18 CSS variable names the real diagrams' SVG markup references (a third
+  naming scheme, distinct from both this project's tokens and Oleg's Settings-era `--color-*` ones) onto
+  this project's existing tokens, so the unmodified SVGs render correctly in this app's theme.
+
+Verified live: F1's context-sensitivity held across every state checked (no lanes → `console-overview`;
+a lane open → `lane-workspace`; a lane escalated ≥45s → `escalation`), matching STATES.md §10's priority
+order in practice. Tree click-navigation; search's all-terms-must-match and Enter-opens-top-hit; a real
+diagram rendering in this app's theme (computed SVG text color matched this project's actual `--text-2`,
+not a missing-variable fallback); a table and a numbered-steps list from real content; Related links;
+Previous/Next; the meta line. The figure lightbox's hotspot count matched its legend count exactly (12
+and 12 on the article checked); Esc closed the lightbox first, the whole modal on the second press.
+
+Typecheck clean, 58/58 tests passing (9 new, covering `flatArticleOrder`/`prevNextArticle`, `searchHelp`'s
+weighting and all-terms-must-match behavior, and `helpContext`'s priority order against a small fixture
+— not the full 80KB real content, kept fast and focused).

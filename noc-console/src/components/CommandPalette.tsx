@@ -95,7 +95,8 @@ function buildCommands(server: Snapshot, store: NocStore): { group: string; item
     { id: 'shift', label: 'Shift report', group: 'Navigation', run: () => store.setShiftReportOpen(true) },
     { id: 'settings', label: 'Settings', group: 'Navigation', run: () => store.setSettingsOpen(true) },
     { id: 'page2', label: 'Page second desk', group: 'Navigation', run: () => void store.pageSecondDesk() },
-    { id: 'help', label: 'Keyboard shortcuts', group: 'Navigation', run: () => store.setShortcutsOpen(true) },
+    { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Navigation', run: () => store.setShortcutsOpen(true) },
+    { id: 'help', label: 'Help', hint: 'F1', group: 'Navigation', run: () => store.setHelpOpen(true) },
   ]
 
   const all = [...laneCommands, ...escalationCommands, ...focusedCommands, ...queueCommands, ...navCommands]

@@ -9,6 +9,7 @@ const SHORTCUTS: [string, string][] = [
   ['K', 'Acknowledge the unattended-lane escalation bar'],
   ['W', 'Open or close the camera wall'],
   ['Ctrl/⌘ + K', 'Command palette — search lanes, queue and actions'],
+  ['F1', 'Help — opens on the article for what’s on screen'],
   ['Esc', 'Close the open dialog, keeping any memo you typed'],
   ['?', 'Show this legend'],
 ]
