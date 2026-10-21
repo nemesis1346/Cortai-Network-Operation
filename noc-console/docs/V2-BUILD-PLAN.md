@@ -531,3 +531,26 @@ timer); a full hold arms and updates `StatusBar`'s Sirens field; a single press 
 correctly for both Siren and Strobe; typing a literal "s" inside the note field does nothing to the siren
 and the typed text is unaffected (the existing `isTypingTarget` guard already covered this correctly once
 S/L were added through the same dispatch path as H/R/M).
+
+## Bug fix, 21 Oct: clicking a Working-tab queue row did nothing
+
+**Found by Marco testing the live app ahead of the demo recording** — clicking a row in the Working or
+Held tab appeared to do nothing at all, with no error and no visible change. Traced to
+`MockNocClient.openIncident`: when an incident already exists for the clicked alert (true for every
+Working-tab row, since that's what "Working" means), it returns the existing incident as-is and never
+calls `setFocus`. The row still renders a `Lane X` tag and the same `role="button"`/hover styling as a
+real "take" action, so there was nothing distinguishing "this will open a lane" from "this just tells you
+which lane it's already in" — the row looked equally clickable either way, but only one case did anything.
+
+Fixed in `store.ts`'s `openIncident` command, not the client: if an incident already exists for the
+clicked alert, the command now calls `requestFocus` on it instead of re-running `openIncident` — the same
+safe, mic-confirm-aware path `LaneCard`, `EscalationBar` and the command palette already use to jump to
+an open lane. An alert with no incident yet (New/Held, lane permitting) is untouched and still only
+steals focus if nothing else currently has it, so "take" still can't interrupt whatever you're already
+working.
+
+Verified live: with two lanes open (A focused, B peripheral), clicking the Working-tab row tagged
+`Lane B` moved focus there (confirmed via the Other Lanes card list: B dropped out of it, A took its
+place) — the exact scenario reported. Clicking an already-focused lane's own row is a no-op, same as
+clicking its own lane card. Opening a second New-tab alert while one is already focused still leaves
+focus where it was, unchanged from before. No console errors. All 58 existing unit tests still pass.

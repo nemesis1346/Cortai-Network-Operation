@@ -132,7 +132,17 @@ export class NocStore {
 
   /* ---------- commands (UI intent -> client) ---------- */
 
+  /** Queue row click. An already-open incident (Working tab) just needs
+   * focus — same safe path (mic-confirm included) as the lane card/
+   * escalation bar/palette use, not a second openIncident that would
+   * silently no-op. A not-yet-open alert (New/Held) still goes through
+   * openIncident, which only steals focus if nothing else currently has it. */
   async openIncident(alertId: string): Promise<void> {
+    const already = this.state.server?.incidents.find((i) => i.alertId === alertId)
+    if (already) {
+      await this.requestFocus(already.id)
+      return
+    }
     const r = await this.client.openIncident(alertId)
     if (!r.ok) {
       if (r.error.code === 'LANE_LIMIT') this.patchUi({ queueRefusal: r.error.message })
