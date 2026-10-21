@@ -67,6 +67,11 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   trailing `click` after any press-release, including the hold gesture itself, will silently undo the
   arm unless the disarm handler checks `justArmed()` first; found live, not in review — see the hook's
   doc comment and `docs/V2-BUILD-PLAN.md`'s Part 1 notes.
+- The S/L keys the buttons have hinted at since Part 1 didn't actually do anything from outside the
+  button itself until 21 Oct — only Enter/Space-while-focused worked. Fixed via a small registry in
+  `useHoldToArm` so `useHotkeys.ts`'s global S/L (hold to arm, single press to disarm — STATES.md §4)
+  drives the same hook instance the button's pointer hold does, visual fill included. See
+  `docs/V2-BUILD-PLAN.md`'s "Bug fix, 21 Oct" note.
 - The ladder can now resume after a halt (R key), not just halt — picks up from where it paused, not
   from 0. The mockup/v1 never had this; v2's `onResume` prop made the gap concrete.
 - Peripheral lanes self-escalate on their own unattended *streak* (time since last focus, resets on

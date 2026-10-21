@@ -65,8 +65,8 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const timelineGroups = groupLedger(ledger)
   const transcript = server.transcript.filter((l) => l.incidentId === inc.id)
 
-  const sirenHold = useHoldToArm(() => void store.setSiren(inc.id, true))
-  const strobeHold = useHoldToArm(() => void store.setStrobe(inc.id, true))
+  const sirenHold = useHoldToArm(() => void store.setSiren(inc.id, true), 600, 'siren')
+  const strobeHold = useHoldToArm(() => void store.setStrobe(inc.id, true), 600, 'strobe')
   // Press claims the mic only if some other lane doesn't already have it bound
   // here — re-pressing while already bound just re-asserts "talking" locally,
   // it must never fall into toggleMic's release branch (that's M's job).

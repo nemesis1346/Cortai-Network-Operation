@@ -6,6 +6,8 @@ const SHORTCUTS: [string, string][] = [
   ['M', 'Open or close the microphone on the focused lane'],
   ['H', 'Halt the voice ladder on the focused lane'],
   ['R', 'Resume a halted ladder, from where it paused'],
+  ['S', 'Hold 600ms to arm the siren on the focused lane, press to silence it'],
+  ['L', 'Hold 600ms to arm the strobe on the focused lane, press to switch it off'],
   ['K', 'Acknowledge the unattended-lane escalation bar'],
   ['W', 'Open or close the camera wall'],
   ['Ctrl/⌘ + K', 'Command palette — search lanes, queue and actions'],

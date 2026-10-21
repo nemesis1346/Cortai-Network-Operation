@@ -1,4 +1,19 @@
-import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+
+/**
+ * Lets a global keydown handler (useHotkeys.ts's S/L) drive the *same* hook
+ * instance a lane's Siren/Strobe button uses, so the button's visual
+ * hold-fill animates correctly no matter which input method triggered the
+ * hold — not a second, disconnected timer with no visual feedback. At most
+ * one LaneWorkspace is mounted at a time (only the focused lane renders
+ * these buttons), so a flat two-slot registry is enough — no need to key it
+ * by incident id.
+ */
+type ArmHandle = { start: () => void; cancel: () => void }
+const registry: Partial<Record<'siren' | 'strobe', ArmHandle>> = {}
+export function triggerArmHandle(key: 'siren' | 'strobe', action: 'start' | 'cancel'): void {
+  registry[key]?.[action]()
+}
 
 /**
  * Siren and strobe arm on a 600ms hold, pointer or keyboard (v2 UI-SPEC.md
@@ -16,8 +31,15 @@ import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
  * gesture, so a successful 600ms hold appeared to do nothing. The caller
  * must check `justArmed()` at the top of its click handler and bail out if
  * it returns true, consuming the flag so the *next* real click still works.
+ *
+ * `registryKey`, when given, also registers this instance's start/cancel so
+ * a global keydown (the literal S/L keys, not just Enter/Space while this
+ * element has focus) can drive it — see useHotkeys.ts. Found live: the
+ * button's own `<kbd>S</kbd>`/`<kbd>L</kbd>` hints promised a real keyboard
+ * shortcut that was never actually wired anywhere; only Enter/Space while
+ * the button itself had DOM focus worked, which nobody would discover.
  */
-export function useHoldToArm(onArm: () => void, holdMs = 600) {
+export function useHoldToArm(onArm: () => void, holdMs = 600, registryKey?: 'siren' | 'strobe') {
   const [holding, setHolding] = useState(false)
   const [progress, setProgress] = useState(0)
   const timerRef = useRef<number | null>(null)
@@ -56,6 +78,15 @@ export function useHoldToArm(onArm: () => void, holdMs = 600) {
     if (timerRef.current === null) return
     clear()
   }, [clear])
+
+  useEffect(() => {
+    if (!registryKey) return
+    const handle: ArmHandle = { start, cancel }
+    registry[registryKey] = handle
+    return () => {
+      if (registry[registryKey] === handle) delete registry[registryKey]
+    }
+  }, [registryKey, start, cancel])
 
   return {
     holding,

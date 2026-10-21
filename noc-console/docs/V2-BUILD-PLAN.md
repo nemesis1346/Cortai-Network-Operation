@@ -505,3 +505,29 @@ a numbered-steps list, Related links, Previous/Next in tree order, and the meta 
 real content. The figure lightbox's hotspot markers matched its legend 1:1 (12 and 12 on the article
 checked); Esc closed the lightbox first and the whole modal second, exactly as specified. No real bugs
 found in the live pass.
+
+## Bug fix, 21 Oct: S/L never actually worked
+
+**Found by Marco while scripting a demo for Yassine, not by live verification here.** The Siren and
+Strobe buttons have shown `<kbd>S</kbd>`/`<kbd>L</kbd>` hints since Part 1, but the literal keys were
+never wired anywhere — `useHoldToArm`'s keyboard handling only ever listened for Enter/Space while the
+button itself had DOM focus (reachable only by Tab-ing to it, which nobody would discover), and neither
+key was in `useHotkeys.ts`'s global listener or `ShortcutsLegend`. Pressing **S** from anywhere else in
+the console, which is what the button's own hint promises, silently did nothing. Missed in every prior
+live-verification pass because testing used pointer-hold on the button directly, never the literal key.
+
+Fixed by making S/L real global hotkeys on the focused lane (`useHotkeys.ts`, matching H/R/M/W/K), hold
+600ms to arm, single press to disarm (STATES.md §4's actual stop column — not a hold to turn off, which
+the Enter/Space-on-button path already got right but the new global path needed to match). Rather than a
+second, disconnected timer with no visual feedback, `useHoldToArm` grew a small two-slot registry (siren/
+strobe — at most one `LaneWorkspace` is mounted at a time, so no need to key it by incident) that a
+global keydown/keyup can drive directly, so the button's own hold-fill animation plays correctly
+regardless of which input method triggered it. Both now documented in `ShortcutsLegend`, where they were
+never listed before either.
+
+Verified live: a tap released before 600ms doesn't arm; the `--hold` CSS variable reads mid-progress
+during an active global-key hold (confirming the same hook instance drives both paths, not a disconnected
+timer); a full hold arms and updates `StatusBar`'s Sirens field; a single press while armed disarms
+correctly for both Siren and Strobe; typing a literal "s" inside the note field does nothing to the siren
+and the typed text is unaffected (the existing `isTypingTarget` guard already covered this correctly once
+S/L were added through the same dispatch path as H/R/M).
