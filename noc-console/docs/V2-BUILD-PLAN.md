@@ -554,3 +554,25 @@ Verified live: with two lanes open (A focused, B peripheral), clicking the Worki
 place) — the exact scenario reported. Clicking an already-focused lane's own row is a no-op, same as
 clicking its own lane card. Opening a second New-tab alert while one is already focused still leaves
 focus where it was, unchanged from before. No console errors. All 58 existing unit tests still pass.
+
+## Bug fix, 26 Oct: unit tests crashed on Node 24/25 (Yassine's review)
+
+**Reported by Yassine during v2 sign-off review**, which also carried the approval for this build overall
+and for the single-Lane-Workspace / wall-stays-open-during-incidents decisions specifically (both
+confirmed live on his machine, no changes needed there). The test bug: `appearance.test.ts` and
+`store.test.ts` crashed on his Node (24/25) — 2 files, matching what he reported. Root cause: newer Node
+ships a global `localStorage` as a getter, not a plain value, and that getter itself throws
+(`ERR_INVALID_ARG_VALUE: --localstorage-file ...`) unless the process is launched with
+`--localstorage-file`. `appearance.ts`'s `hasStorage = typeof localStorage !== 'undefined'` looks like a
+safe existence check, but `typeof` on a declared getter still *invokes* it — so the guard itself was the
+thing crashing, not `getItem`/`setItem` as such (Yassine's diagnosis was slightly off on the exact call
+site, but the fix he suggested — don't trust a bare `typeof` check — was exactly right).
+
+Reproduced locally with `NODE_OPTIONS="--experimental-webstorage" npx vitest run`: identical 2-file crash,
+both erroring at `appearance.ts`'s `hasStorage` line. Fixed by wrapping the whole probe (`typeof` check
+and a real `getItem` call) in try/catch (`detectStorage()` in `appearance.ts`), so any environment where
+`localStorage` exists but is unusable is treated the same as one where it's simply absent — both already
+meant "fall back to defaults, skip persistence" before this fix, only the detection step was unsound.
+
+Verified: plain `npx vitest run` still passes (58/58), `NODE_OPTIONS="--experimental-webstorage" npx
+vitest run` now also passes (58/58, no crash), typecheck clean.

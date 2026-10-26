@@ -78,6 +78,10 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   already-open alert now goes through `requestFocus` instead (same path the lane cards and escalation
   bar use), a not-yet-open one still goes through `openIncident` unchanged. See
   `docs/V2-BUILD-PLAN.md`'s second "Bug fix, 21 Oct" note.
+- Unit tests crashed on Node 24/25 (Yassine, 26 Oct review) — a newer Node ships a global `localStorage`
+  getter that itself throws without `--localstorage-file`, so `appearance.ts`'s old `typeof localStorage
+  !== 'undefined'` guard crashed instead of safely returning false. Fixed by probing it (a real `getItem`
+  call) inside try/catch. See `docs/V2-BUILD-PLAN.md`'s "Bug fix, 26 Oct" note.
 - The ladder can now resume after a halt (R key), not just halt — picks up from where it paused, not
   from 0. The mockup/v1 never had this; v2's `onResume` prop made the gap concrete.
 - Peripheral lanes self-escalate on their own unattended *streak* (time since last focus, resets on

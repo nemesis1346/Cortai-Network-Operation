@@ -41,6 +41,9 @@ explicit "yes" the rest of the deviations did — Yassine wanted to see them on 
 viewing isn't happening in a structured way now. Worth a quick confirmation from Marco before either
 ships to real use, not a reason to hold the build.
 
+**Confirmed, 26 Oct:** Yassine used both live during his v2 review and approved them as built — no
+Figma pass needed after all. The risk flagged above is closed; nothing left to confirm on either item.
+
 Everything else approved in the deviations table (estate tree replacing the camera ribbon, Comms Dock
 replacing the voice strip, the mic hand-off dropping its confirm step for an explicit button, the
 1440/1024 breakpoints, the rest of the new token system) is being built now too, in parts — see

@@ -20,7 +20,21 @@ export type Typeface = 'plex' | 'inter' | 'atkinson'
 const THEME_KEY = 'sentry.theme.v2'
 const FACE_KEY = 'sentry.face'
 
-const hasStorage = typeof localStorage !== 'undefined'
+/** Newer Node ships a global `localStorage` getter that itself throws
+ * (`--localstorage-file` required) rather than being simply undefined, so a
+ * bare `typeof localStorage` check isn't enough — probe it inside a
+ * try/catch (Yassine, 26 Oct: 2 unit-test files crashed on Node 24/25). */
+function detectStorage(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    localStorage.getItem('__probe__')
+    return true
+  } catch {
+    return false
+  }
+}
+
+const hasStorage = detectStorage()
 const hasDocument = typeof document !== 'undefined'
 
 export function getStoredTheme(): Theme {
