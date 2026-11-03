@@ -29,3 +29,18 @@ export const LADDER_STAGES: LadderStageDef[] = [
   { index: 2, name: 'Keyholder', atSec: UNATTENDED_ALARM_SEC },
   { index: 3, name: 'Dispatch' },
 ]
+
+/**
+ * Part 8 · auth (Yassine, 3 Nov): email-code sign-in, replacing the v2
+ * prototype's password step. Lionston rules, verbatim.
+ */
+export const OTP_CODE_LENGTH = 6
+export const OTP_VALID_MIN = 10
+export const OTP_RESEND_SEC = 30
+export const OTP_MAX_PER_EMAIL_PER_HOUR = 5
+export const OTP_MAX_WRONG_ATTEMPTS = 3
+export const EMAIL_LOCK_MIN = 15
+export const SESSION_MAX_HOURS = 24
+/** Idle lock timeout. Yassine's number (15) supersedes the v1.2 lock-screen
+ * help article's 10 — that article predates the OTP rework; see DECISIONS.md. */
+export const IDLE_LOCK_MIN = 15

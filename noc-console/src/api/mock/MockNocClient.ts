@@ -2,6 +2,7 @@ import type { NocClient } from '../client'
 import type {
   Alert,
   ApiError,
+  AuthOperator,
   CloseIncidentInput,
   ClosedIncidentSummary,
   DeskPage,
@@ -20,7 +21,16 @@ import type {
   TranscriptSpeaker,
   WatchScore,
 } from '../types'
-import { LADDER_STAGES, MAX_LANES, MEMO_MIN_LENGTH, UNATTENDED_ALARM_SEC } from '../../domain/constants'
+import {
+  EMAIL_LOCK_MIN,
+  LADDER_STAGES,
+  MAX_LANES,
+  MEMO_MIN_LENGTH,
+  OTP_MAX_PER_EMAIL_PER_HOUR,
+  OTP_MAX_WRONG_ATTEMPTS,
+  OTP_RESEND_SEC,
+  UNATTENDED_ALARM_SEC,
+} from '../../domain/constants'
 import { buildCallout, checkMemo, type QueuePriority } from '../../domain/rules'
 import { attendedSec, incidentAgeSec, ladderElapsedSec, unattendedStreakSec } from '../../domain/timing'
 import { STILL_CAPTIONS, seedAlerts, seedEstate, seedWatch } from './data'
@@ -30,6 +40,20 @@ const fail = (code: ApiError['code'], message: string, extra?: Partial<ApiError>
   ok: false,
   error: { code, message, ...extra },
 })
+
+/** Per-email mock auth bookkeeping — real codes never exist, see `verifyCode`. */
+interface EmailAuthState {
+  /** Timestamps (ms) of codes sent in the last hour, for the 5/hour cap. */
+  sentAt: number[]
+  lockedUntilMs: number | null
+  wrongAttempts: number
+}
+
+/** Mock-only: no real identity service, so this is who every accepted email
+ * resolves to (Yassine, 3 Nov: "any email accepted"). Reuses the operator id
+ * already seeded on the shift (`op1`/"M. Okafor") rather than inventing a
+ * second identity for the same mock operator. */
+const MOCK_OPERATOR: AuthOperator = { id: 'op1', name: 'M. Okafor', desks: [1, 2, 3, 4] }
 
 /**
  * In-memory NocClient. It plays the role of the backend: it owns state, runs the
@@ -44,6 +68,12 @@ export class MockNocClient implements NocClient {
   private snap: Snapshot
   private closedAttended = 0
   private closedUnattended = 0
+
+  /* ---------- auth (Part 8) ---------- */
+  private authByEmail = new Map<string, EmailAuthState>()
+  /** Verified by code, not yet on a desk. */
+  private pendingOperator: AuthOperator | null = null
+  private session: { operator: AuthOperator; desk: number } | null = null
 
   constructor(now: number = Date.now()) {
     const { sites, cameras } = seedEstate(now)
@@ -536,6 +566,98 @@ export class MockNocClient implements NocClient {
   private setAlertState(alert: Alert, state: Alert['state']): void {
     alert.state = state
     this.emit({ type: 'alert.upsert', alert: { ...alert } })
+  }
+
+  /* ---------- NocClient: auth (Part 8) ---------- */
+
+  private emailState(email: string): EmailAuthState {
+    let s = this.authByEmail.get(email)
+    if (!s) {
+      s = { sentAt: [], lockedUntilMs: null, wrongAttempts: 0 }
+      this.authByEmail.set(email, s)
+    }
+    return s
+  }
+
+  async requestCode(email: string): Promise<Result<{ resendAfterSec: number }>> {
+    const now = Date.now()
+    const s = this.emailState(email)
+    if (s.lockedUntilMs && s.lockedUntilMs > now) {
+      return fail('EMAIL_LOCKED', 'This email is locked. Try again later.', {
+        retryAfterSec: Math.ceil((s.lockedUntilMs - now) / 1000),
+      })
+    }
+    const last = s.sentAt[s.sentAt.length - 1]
+    if (last && now - last < OTP_RESEND_SEC * 1000) {
+      return fail('RESEND_TOO_SOON', 'Wait before requesting another code.', {
+        retryAfterSec: Math.ceil((OTP_RESEND_SEC * 1000 - (now - last)) / 1000),
+      })
+    }
+    s.sentAt = s.sentAt.filter((t) => now - t < 3600_000)
+    if (s.sentAt.length >= OTP_MAX_PER_EMAIL_PER_HOUR) {
+      const oldest = s.sentAt[0] ?? now
+      return fail('RATE_LIMITED', 'Too many codes requested. Try again later.', {
+        retryAfterSec: Math.ceil((3600_000 - (now - oldest)) / 1000),
+      })
+    }
+    s.sentAt.push(now)
+    return ok({ resendAfterSec: OTP_RESEND_SEC })
+  }
+
+  /** Mock codes, same for every email (Yassine, 3 Nov): 123456 always valid,
+   * 000000 always expired (doesn't count as a wrong guess — the code simply
+   * aged out, nothing the operator got wrong), anything else is wrong and
+   * counts toward the 3-strikes lock. */
+  async verifyCode(email: string, code: string): Promise<Result<{ operator: AuthOperator }>> {
+    const now = Date.now()
+    const s = this.emailState(email)
+    if (s.lockedUntilMs && s.lockedUntilMs > now) {
+      return fail('EMAIL_LOCKED', 'This email is locked. Try again later.', {
+        retryAfterSec: Math.ceil((s.lockedUntilMs - now) / 1000),
+      })
+    }
+    if (code === '123456') {
+      s.wrongAttempts = 0
+      this.pendingOperator = MOCK_OPERATOR
+      return ok({ operator: MOCK_OPERATOR })
+    }
+    if (code === '000000') return fail('CODE_EXPIRED', 'This code has expired. Request a new one.')
+    s.wrongAttempts += 1
+    if (s.wrongAttempts >= OTP_MAX_WRONG_ATTEMPTS) {
+      s.wrongAttempts = 0
+      s.lockedUntilMs = now + EMAIL_LOCK_MIN * 60_000
+      return fail('EMAIL_LOCKED', 'Too many wrong codes. This email is now locked.', {
+        retryAfterSec: EMAIL_LOCK_MIN * 60,
+      })
+    }
+    return fail('INVALID_CODE', "That code doesn't match.", {
+      attemptsLeft: OTP_MAX_WRONG_ATTEMPTS - s.wrongAttempts,
+    })
+  }
+
+  async selectDesk(deskId: number): Promise<Result<null>> {
+    const operator = this.pendingOperator ?? this.session?.operator ?? null
+    if (!operator) return fail('INVALID_STATE', 'Verify a code before choosing a desk')
+    if (!operator.desks.includes(deskId)) return fail('NOT_FOUND', 'Desk not available to this operator')
+    this.session = { operator, desk: deskId }
+    this.pendingOperator = null
+    return ok(null)
+  }
+
+  /** "Locked" has no server-side meaning (STATES.md: lanes/timers/paging all
+   * keep running while locked) — purely a client UI state the store owns.
+   * This exists as a real call anyway since Yassine's contract lists it
+   * (likely for the same sign-in/out audit log the sign-in article promises),
+   * not because the mock needs to branch on it. */
+  async lock(): Promise<Result<null>> {
+    if (!this.session) return fail('INVALID_STATE', 'No active session to lock')
+    return ok(null)
+  }
+
+  async signOut(): Promise<Result<null>> {
+    this.session = null
+    this.pendingOperator = null
+    return ok(null)
   }
 
   private siteName(inc: Incident): string {

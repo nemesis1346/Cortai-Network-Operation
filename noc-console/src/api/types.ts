@@ -287,6 +287,29 @@ export interface ShiftInfo {
   speakersReachable: number
 }
 
+/* ---------- Auth (Part 8) ---------- */
+
+/** What `auth.verifyCode` resolves to, before a desk is chosen — distinct
+ * from `Operator`, whose single `desk` only makes sense once one is. */
+export interface AuthOperator {
+  id: string
+  name: string
+  /** Desks this operator may sign into, 1-4. `selectDesk` must pick from here. */
+  desks: number[]
+}
+
+export type SessionStatus = 'signed-out' | 'active' | 'locked'
+
+/** Client-held auth state. Not part of `Snapshot`: it exists before any
+ * snapshot can be fetched, and `locked` must survive even if the lane data
+ * underneath keeps changing (STATES.md: lanes/timers keep running locked). */
+export interface AuthSession {
+  status: SessionStatus
+  operator: AuthOperator | null
+  desk: number | null
+  signedInAt: ISODate | null
+}
+
 export interface DeskPage {
   desk: number
   pagedAt: ISODate
@@ -380,12 +403,21 @@ export type ErrorCode =
   | 'MEMO_TOO_SHORT'
   | 'NOT_FOUND'
   | 'INVALID_STATE'
+  | 'INVALID_CODE' // wrong 6-digit code (Part 8 · auth)
+  | 'CODE_EXPIRED' // code past its 10-minute window
+  | 'EMAIL_LOCKED' // 3 wrong attempts burned the code and locked the email
+  | 'RATE_LIMITED' // 5 codes/email/hour exceeded
+  | 'RESEND_TOO_SOON' // under the 30s resend cooldown
 
 export interface ApiError {
   code: ErrorCode
   message: string
   /** MIC_BUSY: the incident that currently holds the mic. */
   micOwnerIncidentId?: string
+  /** INVALID_CODE: attempts left before the email locks. EMAIL_LOCKED /
+   * RESEND_TOO_SOON / RATE_LIMITED: seconds until the operator can try again. */
+  attemptsLeft?: number
+  retryAfterSec?: number
 }
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: ApiError }

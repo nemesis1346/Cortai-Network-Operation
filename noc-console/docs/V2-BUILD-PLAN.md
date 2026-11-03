@@ -17,7 +17,10 @@ the center exists.
 | 4 | **Camera wall** — status tabs, stays open while incidents are open; a tile opens a camera view or the lane that owns it. | the wall-overlay half of `CameraRibbon.tsx` | Part 3 | **Done**, 12 Oct |
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
-| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct — only History and sign-in/lock left, both blocked (see below) |
+| 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
+| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Auth domain/mock-client layer done (types, constants, `MockNocClient` auth methods, `auth.test.ts`); screens (sign-in, desk picker, lock, connection-lost) and `App.tsx` session gating not started. |
+| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Not started** — decision note in `DECISIONS.md` still to write, per Yassine's instruction to decide it before building. |
+| 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
 ### Part 7 sub-parts
 
@@ -28,8 +31,8 @@ the center exists.
 | Settings (theme/typeface) | **Done**, 16 Oct |
 | Command palette (⌘K) | **Done**, 16 Oct |
 | Help (F1) | **Done**, 20 Oct |
-| History (sealed records) | **Blocked** — entangled with the still-open Report/Record merge, `DECISIONS.md` #5 |
-| Sign-in / lock / connection-lost | **Blocked** — needs the Lionston OTP flow, `DECISIONS.md` the auth blocker |
+| History (sealed records) | Moved to **Part 9** above, 3 Nov — unblocked, no longer tracked here |
+| Sign-in / lock / connection-lost | Moved to **Part 8** above, 3 Nov — unblocked, no longer tracked here |
 
 ## Part 1 notes
 
@@ -576,3 +579,26 @@ meant "fall back to defaults, skip persistence" before this fix, only the detect
 
 Verified: plain `npx vitest run` still passes (58/58), `NODE_OPTIONS="--experimental-webstorage" npx
 vitest run` now also passes (58/58, no crash), typecheck clean.
+
+## Part 8 notes (sign-in, lock, connection-lost — auth domain/mock layer)
+
+**First commit of Part 8, scoped deliberately small**: the auth domain types, constants and
+`MockNocClient` implementation, with no UI yet — matching Yassine's "small commits... one PR per point"
+rather than landing the whole point at once. Screens (sign-in form, desk picker, lock screen,
+connection-lost banner) and gating `App.tsx` behind a session are the next commit(s).
+
+What's here: `AuthOperator`/`SessionStatus`/`AuthSession` in `types.ts`; `ErrorCode` gained
+`INVALID_CODE`/`CODE_EXPIRED`/`EMAIL_LOCKED`/`RATE_LIMITED`/`RESEND_TOO_SOON`, `ApiError` gained
+`attemptsLeft`/`retryAfterSec`, reusing the existing `Result<T>` pattern rather than a parallel auth-error
+type; `OTP_*`/`EMAIL_LOCK_MIN`/`SESSION_MAX_HOURS`/`IDLE_LOCK_MIN` in `domain/constants.ts`;
+`requestCode`/`verifyCode`/`selectDesk`/`lock`/`signOut` added to `NocClient` and implemented in
+`MockNocClient` per Yassine's exact mock rules (any email, `123456` valid, `000000` expired, 3 wrong
+locks for 15 min, resend cooldown 30s, 5 codes/email/hour) — per-email state in a `Map`, independent
+per address. No separate unlock endpoint: the lock screen's "fresh email code" reuses `requestCode`/
+`verifyCode`, per `DECISIONS.md`.
+
+Verified: `src/api/mock/auth.test.ts`, 9 tests — valid/expired/wrong codes, the 3-strike lock and its
+15-minute expiry (via `vi.advanceTimersByTime`), resend cooldown, the hourly rate cap, desk-selection
+guards (no session yet / desk not offered to this operator), the full request→verify→pick-desk→lock→
+sign-out sequence, and that two different emails never share lockout state. Typecheck clean, full suite
+67/67 (58 existing + 9 new).

@@ -48,3 +48,24 @@ Everything else approved in the deviations table (estate tree replacing the came
 replacing the voice strip, the mic hand-off dropping its confirm step for an explicit button, the
 1440/1024 breakpoints, the rest of the new token system) is being built now too, in parts — see
 `V2-BUILD-PLAN.md` for the breakdown and order.
+
+# v2 full approval and Part 8-10 (Yassine, 3 Nov)
+
+NOC v2 approved in full, including the two previously-at-risk deviations above. Everything remaining —
+sign-in/lock/connection-lost (first), Record and History, and the backend contract — is explicitly
+unblocked: "you have all you need, no need to wait for anything from me: decide yourself where a point
+is open, write the decision in DECISIONS.md, and keep going." Target: ready ~1 Dec. Frontend/mock only,
+behind `NocClient`. Rules: deterministic fixtures, no invented numbers, small commits, one PR per point,
+Friday updates (done/next/blocked/hours), same-day flag if actually blocked. Out of scope: real video,
+real alerts, voice/TTS, report PDF, multi-desk paging, roles.
+
+Breakdown and order in `V2-BUILD-PLAN.md` (Parts 8–10). Decisions made while building, as instructed:
+
+| # | Point | Decision |
+|---|---|---|
+| T key | Yassine already decided this one himself, just recording it: keep "Take next" as click-a-queue-row only, don't bind T. Mentioned in 8 help articles but was never wired even before this message. No reason found to change it — binding a key to the exact same single action the row click already does would be a second way to do one thing, not a feature. |
+| Idle-lock minutes | **15**, per Yassine's "default 15 minutes, a constant in `domain/constants.ts`" — overrides the v1.2 lock-screen help article's stale "10 minutes" (that article predates the OTP rework and the password-era design it describes). `IDLE_LOCK_MIN` in `domain/constants.ts`. |
+| Unlock mechanism | No separate unlock endpoint — Yassine's auth method list has none, and "the lock screen asks for a fresh email code" reads as literally re-running `requestCode`/`verifyCode`, same as sign-in, just without a desk re-pick. |
+| Expired code vs. wrong code | `000000` (expired) does **not** count toward the 3-wrong-attempts lock — the operator didn't mistype anything, the code just aged out. Only an actually-wrong code increments the counter. Not stated either way in the brief; this is the more defensible reading and is what `MockNocClient.verifyCode` implements (`src/api/mock/auth.test.ts` covers both paths). |
+| Node 24/25 test fix | Already done — `125abfb`, 26 Oct, before this message arrived. Nothing further needed for this point. |
+| Sign-in/lock/connection-lost help articles | `help.json`'s `sign-in`, `sign-in-problems`, `lock-screen`, `connection-lost` articles are Oleg's verbatim v1.2 copy, written for the password-era design (e.g. "Enter your password", "five failed attempts"). They'll need real content edits once the OTP screens exist — the "import verbatim" rule from Part 7 was about not freely rewriting Oleg's words, not about keeping copy that describes a flow the app no longer has. Edits land with the sign-in build, not before. |

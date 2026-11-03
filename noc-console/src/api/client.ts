@@ -1,5 +1,6 @@
 import type { QueuePriority } from '../domain/rules'
 import type {
+  AuthOperator,
   CloseIncidentInput,
   Incident,
   IncidentReport,
@@ -42,4 +43,16 @@ export interface NocClient {
   acknowledgeEscalation(incidentId: string): Promise<Result<null>>
   /** Manual "Page second desk" from the lane-limit refusal. Yassine, 1 Oct: add as a third button. */
   requestDeskPage(reason: string): Promise<Result<null>>
+
+  /* ---------- Auth (Part 8, Yassine 3 Nov) ---------- */
+
+  /** Any email is accepted (no account enumeration). Rate-limited to 5/email/hour,
+   * resend cooldown 30s (RESEND_TOO_SOON / RATE_LIMITED). Also the lock screen's
+   * "fresh email code" — there's no separate unlock endpoint, it's this same pair. */
+  requestCode(email: string): Promise<Result<{ resendAfterSec: number }>>
+  /** 3 wrong codes burns it and locks the email for 15 min (EMAIL_LOCKED). */
+  verifyCode(email: string, code: string): Promise<Result<{ operator: AuthOperator }>>
+  selectDesk(deskId: number): Promise<Result<null>>
+  lock(): Promise<Result<null>>
+  signOut(): Promise<Result<null>>
 }
