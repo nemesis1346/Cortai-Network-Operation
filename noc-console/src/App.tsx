@@ -9,20 +9,25 @@ import { ReportModal } from './components/ReportModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShiftReportModal } from './components/ShiftReportModal'
 import { ShortcutsLegend } from './components/ShortcutsLegend'
+import { SignInScreen } from './components/SignInScreen'
 import { StatusBar } from './components/StatusBar'
 import { Toasts } from './components/Toasts'
 import { TopBar } from './components/TopBar'
 import { ViewportGate } from './components/ViewportGate'
 import { useHotkeys } from './hooks/useHotkeys'
-import { useServer, useStore } from './store/context'
+import { useAuth, useServer, useStore } from './store/context'
 
 export default function App() {
   const store = useStore()
   const server = useServer()
+  const auth = useAuth()
   const [rail, setRail] = useState<'left' | 'right' | null>(null)
   useHotkeys(store)
 
   if (!server) return <p className="empty" style={{ padding: 24 }}>Connecting…</p>
+  // The mock "server" connects regardless of session (lane timers/ladder run
+  // either way) — this is the only thing gating the console UI itself.
+  if (auth.status === 'signed-out') return <SignInScreen />
 
   return (
     <ViewportGate>

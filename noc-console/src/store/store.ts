@@ -1,5 +1,15 @@
 import type { NocClient } from '../api/client'
-import type { AlertState, CameraStatus, IncidentReport, NextStepId, ServerEvent, Snapshot } from '../api/types'
+import type {
+  AlertState,
+  AuthOperator,
+  AuthSession,
+  CameraStatus,
+  IncidentReport,
+  NextStepId,
+  Result,
+  ServerEvent,
+  Snapshot,
+} from '../api/types'
 import * as appearance from '../domain/appearance'
 import { laneLetter, type QueuePriority } from '../domain/rules'
 import { applyEvent } from './reducer'
@@ -41,9 +51,13 @@ export interface UiState {
 }
 
 export interface AppState {
-  /** null until the first snapshot arrives. */
+  /** null until the first snapshot arrives. The mock "server" connects
+   * regardless of auth (STATES.md: lane timers/ladder/paging run on the
+   * server whether or not an operator is signed in) — `auth` is what gates
+   * the UI, not this. */
   server: Snapshot | null
   ui: UiState
+  auth: AuthSession
 }
 
 const initialUi: UiState = {
@@ -67,6 +81,8 @@ const initialUi: UiState = {
   toast: null,
 }
 
+const initialAuth: AuthSession = { status: 'signed-out', operator: null, desk: null, signedInAt: null }
+
 type Listener = () => void
 
 /**
@@ -74,7 +90,7 @@ type Listener = () => void
  * so replacing the mock with HTTP + WebSocket changes nothing in here.
  */
 export class NocStore {
-  private state: AppState = { server: null, ui: initialUi }
+  private state: AppState = { server: null, ui: initialUi, auth: initialAuth }
   private listeners = new Set<Listener>()
   private toastSeq = 0
   private unsubscribe: (() => void) | null = null
@@ -343,8 +359,56 @@ export class NocStore {
     if (this.state.ui.toast?.id === id) this.patchUi({ toast: null })
   }
 
+  /* ---------- auth (Part 8) ---------- */
+
+  /** Pure passthroughs — the sign-in/lock screens need the specific error
+   * code and detail (attempts left, retry countdown) to render the right
+   * copy, so these return the Result as-is rather than collapsing it into
+   * a generic toast the way most other commands do. */
+  requestCode(email: string): Promise<Result<{ resendAfterSec: number }>> {
+    return this.client.requestCode(email)
+  }
+  verifyCode(email: string, code: string): Promise<Result<{ operator: AuthOperator }>> {
+    return this.client.verifyCode(email, code)
+  }
+
+  /** Completes sign-in (SignInScreen, after verifyCode): picks a desk and
+   * activates the session. Takes the operator from the caller rather than
+   * remembering it store-side — verifyCode's own result already has it. */
+  async selectDesk(deskId: number, operator: AuthOperator): Promise<Result<null>> {
+    const r = await this.client.selectDesk(deskId)
+    if (r.ok) {
+      this.setAuth({ status: 'active', operator, desk: deskId, signedInAt: new Date().toISOString() })
+    }
+    return r
+  }
+
+  /** Completes an unlock (LockScreen, after its own verifyCode) — no separate
+   * unlock endpoint exists (DECISIONS.md): re-running requestCode/verifyCode
+   * is the whole mechanism, this just flips the local status back. */
+  unlock(): void {
+    if (this.state.auth.status !== 'locked') return
+    this.setAuth({ ...this.state.auth, status: 'active' })
+  }
+
+  lock(): void {
+    if (this.state.auth.status !== 'active') return
+    void this.client.lock()
+    this.setAuth({ ...this.state.auth, status: 'locked' })
+  }
+
+  async signOut(): Promise<Result<null>> {
+    const r = await this.client.signOut()
+    if (r.ok) this.setAuth(initialAuth)
+    return r
+  }
+
   /* ---------- internals ---------- */
 
+  private setAuth(auth: AuthSession): void {
+    this.state = { ...this.state, auth }
+    this.emit()
+  }
   private setServer(server: Snapshot): void {
     this.state = { ...this.state, server }
     this.emit()

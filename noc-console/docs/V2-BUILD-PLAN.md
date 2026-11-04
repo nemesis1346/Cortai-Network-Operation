@@ -18,7 +18,7 @@ the center exists.
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
-| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Auth domain/mock-client layer done (types, constants, `MockNocClient` auth methods, `auth.test.ts`); screens (sign-in, desk picker, lock, connection-lost) and `App.tsx` session gating not started. |
+| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen (email/code/desk steps, all error states), `App.tsx` session gate. Not started: lock screen, connection-lost banner, idle-lock timer, help-article wiring/copy. |
 | 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Not started** — decision note in `DECISIONS.md` still to write, per Yassine's instruction to decide it before building. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
@@ -602,3 +602,34 @@ Verified: `src/api/mock/auth.test.ts`, 9 tests — valid/expired/wrong codes, th
 guards (no session yet / desk not offered to this operator), the full request→verify→pick-desk→lock→
 sign-out sequence, and that two different emails never share lockout state. Typecheck clean, full suite
 67/67 (58 existing + 9 new).
+
+**Second commit: the sign-in screen itself, and the `App.tsx` session gate.**
+
+`AppState` gained `auth: AuthSession`, alongside `server`/`ui` — deliberately a sibling of `server`, not
+inside it: the mock "server" connects and starts ticking regardless of session (STATES.md: lane timers/
+ladder/paging run whether or not anyone is signed in), so gating the console has to be independent of
+whether a snapshot exists. `NocStore` gained thin passthroughs for `requestCode`/`verifyCode` (returning
+the raw `Result` — the screen needs the specific error code and `attemptsLeft`/`retryAfterSec` to show
+the right copy, unlike most commands which collapse failures into a toast) plus `selectDesk`/`lock`/
+`unlock`/`signOut`, which do update `auth`. `useAuth()` added to `store/context.tsx` alongside the
+existing `useServer`/`useUi`.
+
+`SignInScreen.tsx`: three local steps (email → code → desk), matching the sign-in help article's own
+flow and the error-state table from sign-in-problems (adapted from password wording to code wording).
+Resend countdown and the locked-email message both read off `useNow()` against an absolute timestamp,
+the same pattern the ladder/unattended timers already use. `App.tsx` renders it whenever
+`auth.status === 'signed-out'`, before the existing viewport gate and console shell.
+
+**Not yet handled by this commit**: `auth.status === 'locked'` currently falls through to the normal
+console (lock screen is the next commit, not this one — nothing reads `'locked'` yet except the type
+itself). Help content for the 4 affected articles still has the old password wording (tracked in
+`DECISIONS.md`).
+
+Verified live via Playwright: lands on sign-in, not the console, on load; empty-email and malformed-code
+client-side validation; wrong code shows "N attempts left" and decrements correctly; `000000` shows
+"expired" and — confirmed by then still succeeding on the real code — does **not** burn an attempt;
+resend button is disabled with a live countdown right after the first send; correct code reaches the
+desk step with all 4 desks offered; picking one loads the actual console (`.topbar` present); a fresh
+email hit 3 real-wrong-codes in a row and got the lockout message. No console errors beyond an unrelated
+favicon 404. Typecheck clean, full suite still 67/67 (this commit added no new unit tests of its own —
+the screen is a thin, already-tested-at-the-client-layer wrapper; its own correctness was verified live).

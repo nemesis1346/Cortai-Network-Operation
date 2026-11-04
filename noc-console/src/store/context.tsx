@@ -1,5 +1,5 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react'
-import type { Snapshot } from '../api/types'
+import type { AuthSession, Snapshot } from '../api/types'
 import type { NocStore, UiState } from './store'
 
 const Ctx = createContext<NocStore | null>(null)
@@ -23,4 +23,9 @@ export function useServer(): Snapshot | null {
 export function useUi(): UiState {
   const store = useStore()
   return useSyncExternalStore(store.subscribe, () => store.getState().ui)
+}
+
+export function useAuth(): AuthSession {
+  const store = useStore()
+  return useSyncExternalStore(store.subscribe, () => store.getState().auth)
 }

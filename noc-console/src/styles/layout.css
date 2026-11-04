@@ -89,6 +89,18 @@
 .gate p { color: var(--text-2); }
 .gate .btn { justify-self: center; }
 
+/* v2 Part 8: sign-in (email code), same centered-card shape as .gate. */
+.signin { display: grid; place-content: center; height: 100vh; padding: var(--sp-5); background: var(--ink); }
+.signin-card { display: grid; gap: var(--sp-3); width: 360px; }
+.signin-card h1 { font-size: var(--fs-h); font-weight: 600; }
+.signin-sub { color: var(--text-2); font-size: var(--fs-body); }
+.signin-label { font-size: var(--fs-label); color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+.signin-input { height: 40px; padding: 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-2);
+  background: var(--panel); color: var(--text-1); font-size: var(--fs-body); }
+.signin-input:focus { outline: none; border-color: var(--cyan); }
+.signin-err { color: var(--red); font-size: var(--fs-body); }
+.signin-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+
 /* below 1180px: rails become drawers, centre gets the full width (audit A13) */
 @media (max-width: 1179px) {
   .body { grid-template-columns: 1fr; }
