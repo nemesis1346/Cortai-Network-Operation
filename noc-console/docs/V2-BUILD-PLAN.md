@@ -18,7 +18,7 @@ the center exists.
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
-| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen (email/code/desk steps, all error states), `App.tsx` session gate. Not started: lock screen, connection-lost banner, idle-lock timer, help-article wiring/copy. |
+| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen, lock screen (manual + idle, unlock, While-you're-away, sign-in-as-another-operator), `App.tsx` session gate. Not started: connection-lost banner, help-article wiring/copy. |
 | 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Not started** — decision note in `DECISIONS.md` still to write, per Yassine's instruction to decide it before building. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
@@ -633,3 +633,33 @@ desk step with all 4 desks offered; picking one loads the actual console (`.topb
 email hit 3 real-wrong-codes in a row and got the lockout message. No console errors beyond an unrelated
 favicon 404. Typecheck clean, full suite still 67/67 (this commit added no new unit tests of its own —
 the screen is a thin, already-tested-at-the-client-layer wrapper; its own correctness was verified live).
+
+**Third commit: the lock screen, manual + idle.**
+
+`AuthSession` gained `email` (set at `selectDesk` time) so the lock screen can re-request a code without
+asking the operator to retype it — `LockScreen.tsx` auto-calls `requestCode` on mount and skips straight
+to the code step, otherwise reusing `SignInScreen`'s error-copy and resend-countdown pattern almost
+verbatim. Unlock is `verifyCode` + `store.unlock()` (a local status flip — no server-side meaning to
+"locked" at all, per the lock-screen article: lanes/timers/paging keep running regardless, confirmed by
+`useIdleLock`/`MockNocClient` never checking it).
+
+`useIdleLock.ts` (new hook): tracks `mousemove`/`mousedown`/`keydown`/`wheel`/`touchstart` against a ref,
+auto-locks after `IDLE_LOCK_MIN` (15) idle minutes, but — matching the article's one still-accurate rule —
+**only when no lane is open**, so a lane you're quietly watching can never lock itself out from under
+you. Resets its baseline the instant it goes active again (unlock or fresh sign-in), otherwise time
+spent locked/signed-out would count against the clock and re-lock on the very next tick. `App.tsx` wires
+it with `auth.status === 'active'` and `server.incidents.length > 0` as the two inputs, and now also
+renders `LockScreen` whenever `auth.status === 'locked'`. `CommandPalette` gained "Lock screen" (always)
+and "Sign out" (only listed when no incidents are open — left out entirely rather than offered and
+refused, matching how `focusedCommands` already conditions on `focused`).
+
+The "While you're away" panel (open lanes + unattended minutes + alarms-waiting count) and the disabled
+"Sign in as another operator" button only appear/engage when a lane is actually open, per the article.
+
+Verified live via Playwright: manual lock from the palette shows the lock screen; wrong-code/correct-code
+both behave exactly as the sign-in screen's own error states; unlocking restores the console; with no
+lane open the away-panel is absent and "sign in as another operator" is enabled; with one open, the
+panel lists it (`Lane A`, `Unattended 0m`, `Alarms waiting 4`) and that button disables. Idle lock
+verified with Playwright's `page.clock` (fast-forwarded 16 simulated minutes, no real waiting): locks
+with no lane open, stays unlocked the same 16 minutes with one open. No console errors beyond the same
+unrelated favicon 404. Typecheck clean, full suite still 67/67.

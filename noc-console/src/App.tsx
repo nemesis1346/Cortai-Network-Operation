@@ -8,6 +8,7 @@ import { Center, LeftRail, RightRail } from './components/Regions'
 import { ReportModal } from './components/ReportModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShiftReportModal } from './components/ShiftReportModal'
+import { LockScreen } from './components/LockScreen'
 import { ShortcutsLegend } from './components/ShortcutsLegend'
 import { SignInScreen } from './components/SignInScreen'
 import { StatusBar } from './components/StatusBar'
@@ -15,6 +16,7 @@ import { Toasts } from './components/Toasts'
 import { TopBar } from './components/TopBar'
 import { ViewportGate } from './components/ViewportGate'
 import { useHotkeys } from './hooks/useHotkeys'
+import { useIdleLock } from './hooks/useIdleLock'
 import { useAuth, useServer, useStore } from './store/context'
 
 export default function App() {
@@ -23,11 +25,13 @@ export default function App() {
   const auth = useAuth()
   const [rail, setRail] = useState<'left' | 'right' | null>(null)
   useHotkeys(store)
+  useIdleLock(store, auth.status === 'active', (server?.incidents.length ?? 0) > 0)
 
   if (!server) return <p className="empty" style={{ padding: 24 }}>Connecting…</p>
   // The mock "server" connects regardless of session (lane timers/ladder run
   // either way) — this is the only thing gating the console UI itself.
   if (auth.status === 'signed-out') return <SignInScreen />
+  if (auth.status === 'locked') return <LockScreen />
 
   return (
     <ViewportGate>

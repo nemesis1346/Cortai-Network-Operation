@@ -97,6 +97,13 @@ function buildCommands(server: Snapshot, store: NocStore): { group: string; item
     { id: 'page2', label: 'Page second desk', group: 'Navigation', run: () => void store.pageSecondDesk() },
     { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Navigation', run: () => store.setShortcutsOpen(true) },
     { id: 'help', label: 'Help', hint: 'F1', group: 'Navigation', run: () => store.setHelpOpen(true) },
+    { id: 'lock', label: 'Lock screen', group: 'Navigation', run: () => store.lock() },
+    // v2 sign-in help article: "sign out only when no lanes are open" —
+    // close or hand off each lane first, so it's left out of the list
+    // entirely rather than offered and then refused.
+    ...(server.incidents.length === 0
+      ? [{ id: 'signout', label: 'Sign out', group: 'Navigation', run: () => void store.signOut() }]
+      : []),
   ]
 
   const all = [...laneCommands, ...escalationCommands, ...focusedCommands, ...queueCommands, ...navCommands]

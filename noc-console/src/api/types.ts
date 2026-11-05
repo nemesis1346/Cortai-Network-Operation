@@ -308,6 +308,9 @@ export interface AuthSession {
   operator: AuthOperator | null
   desk: number | null
   signedInAt: ISODate | null
+  /** Set once, at sign-in — the lock screen's "fresh email code" re-sends to
+   * this address rather than asking the operator to type it again. */
+  email: string | null
 }
 
 export interface DeskPage {

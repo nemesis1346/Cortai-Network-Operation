@@ -99,7 +99,7 @@ export function SignInScreen() {
   async function pickDesk(deskId: number) {
     if (!operator) return
     setBusy(true)
-    const r = await store.selectDesk(deskId, operator)
+    const r = await store.selectDesk(deskId, operator, email.trim())
     setBusy(false)
     if (!r.ok) setError(r.error)
   }

@@ -81,7 +81,9 @@ const initialUi: UiState = {
   toast: null,
 }
 
-const initialAuth: AuthSession = { status: 'signed-out', operator: null, desk: null, signedInAt: null }
+const initialAuth: AuthSession = {
+  status: 'signed-out', operator: null, desk: null, signedInAt: null, email: null,
+}
 
 type Listener = () => void
 
@@ -373,12 +375,13 @@ export class NocStore {
   }
 
   /** Completes sign-in (SignInScreen, after verifyCode): picks a desk and
-   * activates the session. Takes the operator from the caller rather than
-   * remembering it store-side — verifyCode's own result already has it. */
-  async selectDesk(deskId: number, operator: AuthOperator): Promise<Result<null>> {
+   * activates the session. Takes the operator/email from the caller rather
+   * than remembering them store-side — verifyCode's own result (plus the
+   * email it was called with) already has both. */
+  async selectDesk(deskId: number, operator: AuthOperator, email: string): Promise<Result<null>> {
     const r = await this.client.selectDesk(deskId)
     if (r.ok) {
-      this.setAuth({ status: 'active', operator, desk: deskId, signedInAt: new Date().toISOString() })
+      this.setAuth({ status: 'active', operator, desk: deskId, signedInAt: new Date().toISOString(), email })
     }
     return r
   }
