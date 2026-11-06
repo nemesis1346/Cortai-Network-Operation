@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CloseoutModal } from './components/CloseoutModal'
 import { CommandPalette } from './components/CommandPalette'
+import { ConnectionBanner } from './components/ConnectionBanner'
 import { EscalationBar } from './components/EscalationBar'
 import { HelpModal } from './components/HelpModal'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
@@ -37,6 +38,7 @@ export default function App() {
     <ViewportGate>
       <div className={`shell rail-${rail ?? 'none'}`}>
         <TopBar server={server} onOpenRail={(r) => setRail(rail === r ? null : r)} />
+        <ConnectionBanner />
         <EscalationBar server={server} />
         <div className="body">
           {/* DOM order = tab order: centre, right rail, left rail (audit A5). CSS places them visually. */}

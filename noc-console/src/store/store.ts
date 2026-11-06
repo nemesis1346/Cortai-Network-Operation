@@ -4,6 +4,7 @@ import type {
   AuthOperator,
   AuthSession,
   CameraStatus,
+  ConnectionState,
   IncidentReport,
   NextStepId,
   Result,
@@ -58,6 +59,7 @@ export interface AppState {
   server: Snapshot | null
   ui: UiState
   auth: AuthSession
+  connection: ConnectionState
 }
 
 const initialUi: UiState = {
@@ -85,6 +87,8 @@ const initialAuth: AuthSession = {
   status: 'signed-out', operator: null, desk: null, signedInAt: null, email: null,
 }
 
+const initialConnection: ConnectionState = { status: 'online', since: null }
+
 type Listener = () => void
 
 /**
@@ -92,7 +96,10 @@ type Listener = () => void
  * so replacing the mock with HTTP + WebSocket changes nothing in here.
  */
 export class NocStore {
-  private state: AppState = { server: null, ui: initialUi, auth: initialAuth }
+  private state: AppState = {
+    server: null, ui: initialUi, auth: initialAuth, connection: initialConnection,
+  }
+  private connectionTimer: ReturnType<typeof setTimeout> | null = null
   private listeners = new Set<Listener>()
   private toastSeq = 0
   private unsubscribe: (() => void) | null = null
@@ -158,9 +165,12 @@ export class NocStore {
   async openIncident(alertId: string): Promise<void> {
     const already = this.state.server?.incidents.find((i) => i.alertId === alertId)
     if (already) {
+      // Jumping to a lane that's already open is a local focus change, not
+      // a site command — not blocked offline, unlike actually taking one.
       await this.requestFocus(already.id)
       return
     }
+    if (this.refuseIfOffline()) return
     const r = await this.client.openIncident(alertId)
     if (!r.ok) {
       if (r.error.code === 'LANE_LIMIT') this.patchUi({ queueRefusal: r.error.message })
@@ -200,6 +210,7 @@ export class NocStore {
 
   /** Raise incident (I) from camera view — no AI alert behind it, the operator picks the priority. */
   async raiseIncident(cameraId: string, priority: QueuePriority): Promise<void> {
+    if (this.refuseIfOffline()) return
     const r = await this.client.raiseIncident(cameraId, priority)
     if (!r.ok) {
       this.toast(r.error.message, 'warn')
@@ -240,6 +251,7 @@ export class NocStore {
   async toggleMic(incidentId: string): Promise<void> {
     const s = this.state.server
     if (!s) return
+    if (this.refuseIfOffline()) return
     if (s.micOwnerIncidentId === incidentId) {
       await this.client.bindMic(null)
       return
@@ -269,9 +281,21 @@ export class NocStore {
 
   haltLadder = (id: string) => this.client.haltLadder(id)
   resumeLadder = (id: string) => this.client.resumeLadder(id)
-  confirmDispatch = (id: string) => this.client.confirmDispatch(id)
-  setSiren = (id: string, on: boolean) => this.client.setSiren(id, on)
-  setStrobe = (id: string, on: boolean) => this.client.setStrobe(id, on)
+  /** Dispatch, siren and strobe all reach the site directly — refused
+   * offline like take/talk-down/raise, never queued (connection-lost help
+   * article). Halt/resume aren't in that list: left alone. */
+  async confirmDispatch(id: string): Promise<void> {
+    if (this.refuseIfOffline()) return
+    await this.client.confirmDispatch(id)
+  }
+  async setSiren(id: string, on: boolean): Promise<void> {
+    if (this.refuseIfOffline()) return
+    await this.client.setSiren(id, on)
+  }
+  async setStrobe(id: string, on: boolean): Promise<void> {
+    if (this.refuseIfOffline()) return
+    await this.client.setStrobe(id, on)
+  }
   acknowledgePage = (desk: number) => this.client.acknowledgePage(desk)
   acknowledgeEscalation = (incidentId: string) => this.client.acknowledgeEscalation(incidentId)
 
@@ -406,10 +430,47 @@ export class NocStore {
     return r
   }
 
+  /* ---------- connection (Part 8, connection-lost) ---------- */
+
+  /** "Simulate: connection lost" from the command palette — the help
+   * article's own prototype trigger, 8 simulated seconds. Nothing in
+   * MockNocClient actually goes offline; see ConnectionState's doc comment. */
+  simulateConnectionLost(): void {
+    if (this.state.connection.status === 'offline') return
+    this.setConnection({ status: 'offline', since: new Date().toISOString() })
+    this.connectionTimer = setTimeout(() => this.goOnline(), 8000)
+  }
+
+  /** "Retry now" on the banner — ends the simulated outage early. */
+  retryNow(): void {
+    if (this.state.connection.status === 'offline') this.goOnline()
+  }
+
+  private goOnline(): void {
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer)
+      this.connectionTimer = null
+    }
+    this.setConnection({ status: 'online', since: null })
+  }
+
+  /** Gate for the 6 site-affecting actions the connection-lost article
+   * names (take, talk-down, siren, strobe, raise, dispatch): "Offline · not
+   * sent: nothing is queued to fire later" — never queued, always toasted. */
+  private refuseIfOffline(): boolean {
+    if (this.state.connection.status !== 'offline') return false
+    this.toast('Offline · not sent', 'warn')
+    return true
+  }
+
   /* ---------- internals ---------- */
 
   private setAuth(auth: AuthSession): void {
     this.state = { ...this.state, auth }
+    this.emit()
+  }
+  private setConnection(connection: ConnectionState): void {
+    this.state = { ...this.state, connection }
     this.emit()
   }
   private setServer(server: Snapshot): void {

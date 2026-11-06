@@ -1,17 +1,19 @@
 .shell {
   display: grid;
-  grid-template-rows: 48px auto minmax(0, 1fr) 40px;
+  grid-template-rows: 48px auto auto minmax(0, 1fr) 40px;
   height: 100vh;
 }
-/* Explicit rows, not implicit auto-placement: EscalationBar renders `null`
-   when there's nothing to escalate, which removes it as a grid item entirely.
-   Without this, auto-placement then shifts .body into that row's "auto" slot
-   (content-sized, so it starved to ~content height) and .status-bar into
-   .body's intended 1fr row (it grew to fill the leftover space instead). */
+/* Explicit rows, not implicit auto-placement: EscalationBar (and now
+   ConnectionBanner) render `null` when there's nothing to show, which
+   removes them as a grid item entirely. Without this, auto-placement then
+   shifts .body into that row's "auto" slot (content-sized, so it starved to
+   ~content height) and .status-bar into .body's intended 1fr row (it grew
+   to fill the leftover space instead). */
 .topbar { grid-row: 1; }
-.escalation-band { grid-row: 2; }
-.body { grid-row: 3; }
-.status-bar { grid-row: 4; }
+.connection-band { grid-row: 2; }
+.escalation-band { grid-row: 3; }
+.body { grid-row: 4; }
+.status-bar { grid-row: 5; }
 
 /* top bar: brand | shift data centred | health (audit A4) */
 .topbar {
@@ -28,6 +30,9 @@
 .brand span:last-child { color: var(--text-3); font-size: var(--fs-micro); letter-spacing: 0.16em; }
 .mark { width: 20px; height: 20px; border: 2px solid var(--cyan); border-radius: 50%; position: relative; }
 .mark::after { content: ''; position: absolute; inset: 4px; background: var(--cyan); border-radius: 50%; }
+/* v2 connection-lost: "the logo dot turns grey." */
+.mark.offline { border-color: var(--text-3); }
+.mark.offline::after { background: var(--text-3); }
 .topbar-mid { display: flex; align-items: center; justify-content: center; gap: var(--sp-5); }
 .topstat { display: flex; flex-direction: column; line-height: 1.2; }
 .topstat u { text-decoration: none; color: var(--text-3); font-size: var(--fs-micro); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -55,6 +60,15 @@
 .escalation-band .btn { color: var(--text-1); flex-shrink: 0; }
 .escalation-band .btn:first-of-type { margin-left: auto; }
 .escalation-band .btn kbd { margin-left: 4px; }
+
+/* v2 connection-lost: "a blue Connection lost bar under the top bar." */
+.connection-band {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--cyan-bg); color: var(--cyan); border-bottom: 1px solid var(--cyan);
+}
+.connection-band span:nth-of-type(2) { flex: 1 1 auto; min-width: 20ch; }
+.connection-band .btn { color: var(--text-1); flex-shrink: 0; margin-left: auto; }
 
 /* body: visual order left | centre | right, DOM order centre | right | left */
 .body { display: grid; grid-template-columns: 264px 1fr 316px; min-height: 0; }
@@ -184,6 +198,13 @@
 /* left/top/width/height come from VideoSlot's detection data, not fixed here. */
 .bbox { position: absolute; border: 2px solid var(--amber); border-radius: 2px; }
 .video-latency { position: absolute; bottom: 6px; left: 6px; }
+/* v2 connection-lost (and the general degraded/connecting signal states it
+   finally makes reachable, API-CONTRACT.md §7): fallback goes greyscale,
+   a centered tag names the state. */
+.video-slot[data-signal="lost"] .video-slot-fallback,
+.video-slot[data-signal="degraded"] .video-slot-fallback,
+.video-slot[data-signal="connecting"] .video-slot-fallback { filter: grayscale(1) brightness(.6); }
+.video-signal-tag { position: relative; z-index: 1; background: rgba(6, 9, 13, .78); color: var(--text-2); }
 .bbox b { position: absolute; top: -22px; left: 0; font-size: var(--fs-micro); background: rgba(6, 9, 13, .78);
   padding: 2px 6px; border-radius: 2px; color: var(--amber); }
 .osd { position: absolute; display: flex; gap: 6px; padding: 6px; }

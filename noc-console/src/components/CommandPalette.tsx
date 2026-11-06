@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Snapshot } from '../api/types'
 import { derivePriority, laneLetter } from '../domain/rules'
 import type { NocStore } from '../store/store'
-import { useServer, useStore, useUi } from '../store/context'
+import { useConnection, useServer, useStore, useUi } from '../store/context'
 import { incidentsByLane, mostEscalatedIncident } from '../store/selectors'
 
 interface Command {
@@ -25,7 +25,9 @@ interface Command {
  * lane that's focused — a dedicated scope tab didn't add proportional value
  * at this app's size. Flagged as a simplification, not an oversight.
  */
-function buildCommands(server: Snapshot, store: NocStore): { group: string; items: Command[] }[] {
+function buildCommands(
+  server: Snapshot, store: NocStore, connectionOffline: boolean,
+): { group: string; items: Command[] }[] {
   const lanes = incidentsByLane(server)
   const focusId = server.focusIncidentId
   const focused = lanes.find((l) => l.id === focusId) ?? null
@@ -106,7 +108,19 @@ function buildCommands(server: Snapshot, store: NocStore): { group: string; item
       : []),
   ]
 
-  const all = [...laneCommands, ...escalationCommands, ...focusedCommands, ...queueCommands, ...navCommands]
+  // v2 connection-lost help article's own prototype trigger — not a real
+  // operator action, kept in its own group rather than mixed into Navigation.
+  const prototypeCommands: Command[] = connectionOffline
+    ? []
+    : [{
+        id: 'simulate-offline', label: 'Simulate: connection lost', group: 'Prototype',
+        run: () => store.simulateConnectionLost(),
+      }]
+
+  const all = [
+    ...laneCommands, ...escalationCommands, ...focusedCommands, ...queueCommands,
+    ...navCommands, ...prototypeCommands,
+  ]
   const groups: { group: string; items: Command[] }[] = []
   for (const c of all) {
     let g = groups.find((x) => x.group === c.group)
@@ -123,6 +137,7 @@ export function CommandPalette() {
   const store = useStore()
   const server = useServer()
   const ui = useUi()
+  const connection = useConnection()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -139,13 +154,13 @@ export function CommandPalette() {
 
   const groups = useMemo(() => {
     if (!server || !ui.paletteOpen) return []
-    const all = buildCommands(server, store)
+    const all = buildCommands(server, store, connection.status === 'offline')
     const q = query.trim().toLowerCase()
     if (!q) return all
     return all
       .map((g) => ({ group: g.group, items: g.items.filter((c) => c.label.toLowerCase().includes(q)) }))
       .filter((g) => g.items.length)
-  }, [server, store, query, ui.paletteOpen])
+  }, [server, store, query, ui.paletteOpen, connection.status])
 
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups])
 

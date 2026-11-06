@@ -2,7 +2,7 @@ import { useNow } from '../hooks/useNow'
 import { cameraSummary } from '../store/selectors'
 import type { Snapshot } from '../api/types'
 import { openCount } from '../domain/rules'
-import { useStore } from '../store/context'
+import { useConnection, useStore } from '../store/context'
 
 function Clock() {
   const now = useNow()
@@ -13,6 +13,7 @@ function Clock() {
 
 export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (r: 'left' | 'right') => void }) {
   const store = useStore()
+  const connection = useConnection()
   const cams = cameraSummary(server)
   const down = cams.fault + cams.offline
   const open = openCount(server.incidents)
@@ -20,7 +21,7 @@ export function TopBar({ server, onOpenRail }: { server: Snapshot; onOpenRail: (
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="mark" aria-hidden="true" />
+        <span className={`mark ${connection.status === 'offline' ? 'offline' : ''}`} aria-hidden="true" />
         <b>Cortai</b>
         <span>NOC</span>
       </div>

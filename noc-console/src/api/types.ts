@@ -313,6 +313,15 @@ export interface AuthSession {
   email: string | null
 }
 
+/** Client-UI-only (connection-lost help article: "Prototype: run Simulate:
+ * connection lost from the command palette"). Nothing in `MockNocClient`
+ * actually goes offline — this just drives the banner, the video overlay,
+ * and the refusal of the 6 site-affecting actions the article names. */
+export interface ConnectionState {
+  status: 'online' | 'offline'
+  since: ISODate | null
+}
+
 export interface DeskPage {
   desk: number
   pagedAt: ISODate

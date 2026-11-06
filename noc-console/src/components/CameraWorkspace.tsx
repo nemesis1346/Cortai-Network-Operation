@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Camera, Snapshot } from '../api/types'
 import type { QueuePriority } from '../domain/rules'
 import { canOpenIncident } from '../domain/rules'
-import { useStore } from '../store/context'
+import { useConnection, useStore } from '../store/context'
 import { VideoSlot } from './VideoSlot'
 
 const PRIORITIES: QueuePriority[] = ['P1', 'P2', 'P3', 'P4']
@@ -24,9 +24,11 @@ const PRIORITIES: QueuePriority[] = ['P1', 'P2', 'P3', 'P4']
  */
 export function CameraWorkspace({ camera, server }: { camera: Camera; server: Snapshot }) {
   const store = useStore()
+  const connection = useConnection()
   const [priority, setPriority] = useState<QueuePriority>('P3')
   const site = server.sites.find((s) => s.id === camera.siteId)
   const siteCameras = server.cameras.filter((c) => c.siteId === camera.siteId)
+  const offline = connection.status === 'offline'
   const lanesFull = !canOpenIncident(server.incidents.length)
 
   useEffect(() => {
@@ -35,14 +37,14 @@ export function CameraWorkspace({ camera, server }: { camera: Camera; server: Sn
       if (e.key === 'Escape') {
         e.preventDefault()
         void store.closeCameraView()
-      } else if (e.key.toLowerCase() === 'i' && !lanesFull) {
+      } else if (e.key.toLowerCase() === 'i' && !lanesFull && !offline) {
         e.preventDefault()
         void store.raiseIncident(camera.id, priority)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [store, camera.id, priority, lanesFull])
+  }, [store, camera.id, priority, lanesFull, offline])
 
   return (
     <article className="workspace camera-workspace" aria-label={`Camera view · Cam ${camera.id}`}>
@@ -58,7 +60,12 @@ export function CameraWorkspace({ camera, server }: { camera: Camera; server: Sn
 
       <div className="ws-body cw-body">
         <div className="lfeed ws-video">
-          <VideoSlot cameraId={camera.id} tier="full" signal={camera.signal} latencyMs={camera.latencyMs} />
+          <VideoSlot
+            cameraId={camera.id}
+            tier="full"
+            signal={offline ? 'lost' : camera.signal}
+            latencyMs={camera.latencyMs}
+          />
           <div className="osd tl">
             <span className="tag mono">CAM {camera.id}</span>
           </div>
@@ -99,12 +106,13 @@ export function CameraWorkspace({ camera, server }: { camera: Camera; server: Sn
           </div>
           <button
             className="btn primary cw-raise-btn"
-            disabled={lanesFull}
+            disabled={lanesFull || offline}
             onClick={() => void store.raiseIncident(camera.id, priority)}
           >
             Raise incident <kbd>I</kbd>
           </button>
           {lanesFull && <p className="cw-hint">All three lanes are in use. Close or hand off a lane first.</p>}
+          {!lanesFull && offline && <p className="cw-hint">Offline · not sent. Raising an incident needs the connection back.</p>}
         </div>
       </div>
     </article>

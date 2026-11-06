@@ -3,7 +3,7 @@ import { UNATTENDED_ALARM_SEC } from '../domain/constants'
 import { attentionLevel, derivePriority, laneLetter } from '../domain/rules'
 import { fmtClock, unattendedStreakSec } from '../domain/timing'
 import { useNow } from '../hooks/useNow'
-import { useStore } from '../store/context'
+import { useConnection, useStore } from '../store/context'
 import { incidentsByLane } from '../store/selectors'
 import { VideoSlot } from './VideoSlot'
 
@@ -18,6 +18,7 @@ const LANE_ACCENT = ['lane-a', 'lane-b', 'lane-c'] as const
  */
 function LaneCard({ inc, alert }: { inc: Incident; alert: Alert }) {
   const store = useStore()
+  const connection = useConnection()
   const now = useNow()
   const accent = LANE_ACCENT[inc.laneIndex] ?? 'lane-a'
   const streak = unattendedStreakSec(inc, now)
@@ -32,7 +33,7 @@ function LaneCard({ inc, alert }: { inc: Incident; alert: Alert }) {
       onClick={() => void store.requestFocus(inc.id)}
     >
       <div className="lc-video">
-        <VideoSlot cameraId={inc.cameraId} tier="sub" />
+        <VideoSlot cameraId={inc.cameraId} tier="sub" signal={connection.status === 'offline' ? 'lost' : undefined} />
       </div>
       <div className="lc-body">
         <div className="lc-head">

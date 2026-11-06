@@ -18,7 +18,7 @@ the center exists.
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
-| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen, lock screen (manual + idle, unlock, While-you're-away, sign-in-as-another-operator), `App.tsx` session gate. Not started: connection-lost banner, help-article wiring/copy. |
+| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen, lock screen, connection-lost banner (simulated, refusal of the 6 site actions, video/logo greying). Not started: help-article wiring/copy — the one thing left for this point's own "done when" bar. |
 | 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Not started** — decision note in `DECISIONS.md` still to write, per Yassine's instruction to decide it before building. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
@@ -663,3 +663,34 @@ panel lists it (`Lane A`, `Unattended 0m`, `Alarms waiting 4`) and that button d
 verified with Playwright's `page.clock` (fast-forwarded 16 simulated minutes, no real waiting): locks
 with no lane open, stays unlocked the same 16 minutes with one open. No console errors beyond the same
 unrelated favicon 404. Typecheck clean, full suite still 67/67.
+
+**Fourth commit: the connection-lost banner.**
+
+No real transport to actually lose — this is the client-UI-only `ConnectionState` the connection-lost
+help article's own prototype note asks for ("run Simulate: connection lost from the command palette...
+8 seconds"), not a thing `MockNocClient` knows about at all. `store.simulateConnectionLost()` flips it
+offline and schedules `goOnline()` 8s later; `retryNow()` (the banner's own button) just runs that early.
+
+Refuses exactly the 6 actions the article names — take, talk-down (mic), siren, strobe, raise, dispatch
+— with "Offline · not sent", never queued: `openIncident` (only its not-already-open branch; jumping to
+an already-open lane is a local focus change, not a site command), `toggleMic`, `confirmDispatch`,
+`setSiren`, `setStrobe`, `raiseIncident` all gained a `refuseIfOffline()` guard in `store.ts`. Halt/
+resume aren't in the article's list, so left alone on purpose.
+
+Also finally exercises `VideoSlot`'s `degraded`/`lost`/`connecting` signal states — typed since the 29
+Sep video-contract work but never reachable by anything until now (API-CONTRACT.md §7 flagged this
+exact gap: "shipping an unreachable, unverified visual state isn't something I'll do without a way to
+actually trigger and check it"). `LaneWorkspace`/`PeripheralLanes`/`CameraWorkspace` all override their
+camera's own `signal` to `'lost'` while offline, greyscale + a "Paused · offline" tag. `TopBar`'s logo
+dot also greys (`.mark.offline`). `shell`'s grid gained its own row for the new banner, sitting above
+`EscalationBar`'s row (both can show at once) — explicit rows again, same reason the original comment on
+that grid already gives for `EscalationBar` (a `null`-returning banner must not be left to implicit
+auto-placement, or the rows below it resize wrong). `CommandPalette` gained a `Prototype` group with the
+one simulate command, hidden while already offline.
+
+Verified live via Playwright: triggering it shows the banner, greys the logo and the open lane's video
+(`data-signal="lost"`, "Paused · offline" tag); pressing M (talk-down) while offline toasts "Offline ·
+not sent" instead of binding the mic; "Retry now" clears it immediately, logo back to normal. Separately,
+with `page.clock`: still offline at 7 simulated seconds, back online by 9 — confirms the 8s auto-recovery
+without a real wait. Typecheck clean, full suite still 67/67 (no new unit tests this commit — covered by
+store.ts's existing pattern of toast-on-refusal, verified live rather than re-asserted in isolation).

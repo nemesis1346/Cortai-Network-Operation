@@ -5,7 +5,7 @@ import { attendedSec, fmtClock, incidentAgeSec, plural, secondsToNextStage, unat
 import { useHoldToArm } from '../hooks/useHoldToArm'
 import { useHoldToTalk } from '../hooks/useHoldToTalk'
 import { useNow } from '../hooks/useNow'
-import { useStore } from '../store/context'
+import { useConnection, useStore } from '../store/context'
 import { groupLedger } from '../store/selectors'
 import { CommsDock } from './CommsDock'
 import { VideoSlot } from './VideoSlot'
@@ -35,6 +35,7 @@ function shortSite(name: string): string {
  */
 export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Alert; server: Snapshot }) {
   const store = useStore()
+  const connection = useConnection()
   const now = useNow()
   const [noteDraft, setNoteDraft] = useState('')
   const [watchTab, setWatchTab] = useState<'timeline' | 'transcript'>('timeline')
@@ -106,7 +107,7 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
             <VideoSlot
               cameraId={inc.cameraId}
               tier="full"
-              signal={camera?.signal}
+              signal={connection.status === 'offline' ? 'lost' : camera?.signal}
               latencyMs={camera?.latencyMs}
               detections={alert.detections}
             />

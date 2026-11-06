@@ -20,10 +20,17 @@ export interface VideoSlotProps {
  * lane — so the lane doesn't need to know how detections are drawn, only that
  * they exist.
  */
+const NON_LIVE_LABEL: Record<Exclude<VideoSignal, 'live'>, string> = {
+  lost: 'Paused · offline',
+  degraded: 'Degraded',
+  connecting: 'Reconnecting…',
+}
+
 export function VideoSlot({ cameraId, tier, signal = 'live', latencyMs, detections = [] }: VideoSlotProps) {
   return (
     <div className="video-slot" data-camera={cameraId} data-tier={tier} data-signal={signal}>
       <div className="video-slot-fallback" aria-hidden="true" />
+      {signal !== 'live' && <span className="tag mono video-signal-tag">{NON_LIVE_LABEL[signal]}</span>}
       {signal === 'live' &&
         detections.map((d) => (
           <div
