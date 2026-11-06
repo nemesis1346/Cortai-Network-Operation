@@ -131,8 +131,9 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   speaking) — a status that already existed in `types.ts` with a "waiting for stage 0" comment but was
   never actually set until now. See `docs/V2-BUILD-PLAN.md`'s Part 6 notes for a judgment call that was
   wrong on the first pass (gating Dispatch on suppression) and fixed before it shipped.
-- Part 7 (new-in-v2 screens) is split into sub-parts — it's seven different screens, two of them already
-  blocked (History on the Report/Record merge, sign-in/lock on the Lionston OTP flow). First up:
+- Part 7 (new-in-v2 screens) is split into sub-parts — it's seven different screens, two of them blocked
+  at the time (History on the Report/Record merge, sign-in/lock on the Lionston OTP flow — both
+  unblocked by Yassine on 3 Nov; sign-in/lock/connection-lost became Part 8, History is Part 9). First up:
   CameraWorkspace, a camera with no incident. Scoped narrower than the full spec: no pre-incident
   "site log" for speech/deterrents/notes before raising — `CommsDock`/`useHoldToTalk`/`setSiren`/
   `setStrobe` all take an `incidentId` throughout, and the real flow raises first, then uses full
@@ -175,12 +176,30 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   real deliverable (41 articles, 27 screenshots, 4 diagrams), not a spec to write content against.
   Converted to `public/help/help.json` and loaded lazily on first open, exactly per `docs-v2/docs/
   HELP.md`'s own "loading contract for the React build." Shipped verbatim rather than edited to match
-  every judgment call this build has made — a handful of articles describe screens this build doesn't
-  have yet (sign-in, lock, connection-lost, History) or a "T" take-next key this build never bound;
-  `helpContext()` (STATES.md §10's priority order) simply never routes to the former, and both are
-  flagged for Oleg in `docs/V2-BUILD-PLAN.md`'s Part 7 notes rather than silently rewritten. The 4
+  every judgment call this build has made — at the time, a handful of articles described screens this
+  build didn't have yet (sign-in, lock, connection-lost, History) or a "T" take-next key this build never
+  bound; `helpContext()` (STATES.md §10's priority order) simply never routed to the former. Sign-in,
+  lock and connection-lost got real edits once Part 8 built those screens (see this file's own Part 8
+  note below); History (Part 9) and the unbound T key are still open, flagged in `docs/V2-BUILD-PLAN.md`'s
+  Part 7 notes and `docs/DECISIONS.md` respectively rather than silently rewritten. The 4
   diagrams' inline SVGs use a third CSS-variable naming scheme (`--c-*`, distinct from both this
   project's tokens and Oleg's Settings-era `--color-*` ones) — aliased on `.help-diagram` rather than
   rewriting real SVG markup, same reasoning as not rewriting the article text.
+- Part 8 (sign-in, lock, connection-lost — Yassine, 3 Nov, unblocking everything at once) replaces the
+  brief's password step with a Lionston-style email code: request → verify → pick a desk, every error
+  state (wrong/expired/locked/resend/rate-limit) built and tested in the mock client before any UI
+  existed for it. The idle-lock number (15 min, `IDLE_LOCK_MIN`) overrides the help content's own stale
+  10 — that article predates this rework. Connection-lost has no real transport to actually lose, so
+  it's a client-only `ConnectionState` driven by the help article's own "Simulate: connection lost"
+  prototype note; finally exercises `VideoSlot`'s `degraded`/`lost`/`connecting` states, typed since
+  September but unreachable until now. The 4 affected help articles got real edits once their screens
+  existed — `sign-in`/`sign-in-problems` rewritten (password → code throughout), `lock-screen` just
+  patched (10→15 min, password step → code step, everything else already matched), `connection-lost`
+  needed none at all, since it was the spec this work was built from. Their 3 password-showing
+  screenshots were dropped from the articles (not deleted, just unreferenced) — showing a password field
+  next to "enter the 6-digit code" would mislead in a way stale chrome alone doesn't. `HelpModal` now
+  mounts on the sign-in/lock screens too, not just the authenticated console, so F1 actually reaches
+  them. See `docs/V2-BUILD-PLAN.md`'s Part 8 notes (5 commits) and `docs/DECISIONS.md` for every
+  judgment call made building it.
 
 

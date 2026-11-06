@@ -18,7 +18,7 @@ the center exists.
 | 5 | **Comms Dock** — mic binding, waveform, "Move mic here (M)" inside the focused lane; transcript becomes a lane tab. | `VoiceStrip.tsx` | Part 1 | **Done**, 13 Oct |
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
-| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **In progress**, started 3 Nov. Done: auth domain/mock-client layer, sign-in screen, lock screen, connection-lost banner (simulated, refusal of the 6 site actions, video/logo greying). Not started: help-article wiring/copy — the one thing left for this point's own "done when" bar. |
+| 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **Done**, 6 Nov. |
 | 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Not started** — decision note in `DECISIONS.md` still to write, per Yassine's instruction to decide it before building. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
@@ -694,3 +694,45 @@ not sent" instead of binding the mic; "Retry now" clears it immediately, logo ba
 with `page.clock`: still offline at 7 simulated seconds, back online by 9 — confirms the 8s auto-recovery
 without a real wait. Typecheck clean, full suite still 67/67 (no new unit tests this commit — covered by
 store.ts's existing pattern of toast-on-refusal, verified live rather than re-asserted in isolation).
+
+**Fifth and last commit: help-article copy + `helpContext()` routing — Part 8 done.**
+
+`helpContext()` (`domain/help.ts`) gained `signedOut`/`locked`/`connectionOffline` inputs. `signedOut`/
+`locked` go first and are checked ahead of (and are mutually exclusive with) everything else, since
+nothing else can be true while the console itself isn't mounted; `connectionOffline` sits below the
+modal-like states but above the queue/camera/escalation banners, since it's console-wide rather than
+scoped to one region. `App.tsx` now renders `HelpModal` alongside `SignInScreen`/`LockScreen` too (it
+used to live only inside the authenticated console tree) — otherwise F1 toggled `ui.helpOpen` with
+nothing mounted to show it.
+
+Content: `help.json`'s `sign-in` and `sign-in-problems` articles were fully rewritten — they described a
+password step with Caps Lock warnings and a 5-attempt/15-minute lockout, none of which exist anymore.
+`lock-screen` needed two edits, not a rewrite: its idle number (10 → 15 min) and its unlock step (type
+your password → enter the fresh emailed code) — everything else in it (why it locks, the While-you're-away
+box, "sign in as another operator") already matched what got built. `connection-lost` needed **no
+changes at all** — its body already described this exact banner, this exact 6-action refusal list, this
+exact "Offline · not sent" wording and the 8-second prototype trigger, because it was the spec this
+commit's Part-8-fourth-commit work was built from in the first place.
+
+Also removed the `{{fig:sign-in}}`/`{{fig:sign-in-error}}`/`{{fig:lock-screen}}` figure references from
+those three articles' bodies (checked each screenshot first): all three show a literal **Password** field
+next to an eye-reveal button, which would now sit directly beside text saying "enter the 6-digit code" —
+actively misleading, not just stale chrome (every other help screenshot is pre-v2-rebuild too, an
+already-accepted tradeoff of reusing Oleg's verbatim content, but none of those contradict their own
+article's text the way a password field does here). `connection-lost`'s figure was kept — it shows older
+UI chrome like all the others, but nothing it depicts contradicts the (unchanged) text next to it.
+`figures` dict entries and the underlying image files were left in place, just unreferenced, rather than
+deleted — nothing to gain from removing them, and they're a natural slot to fill if real screenshots of
+these screens ever get taken.
+
+Verified: `help.test.ts` gained 3 cases for the new `helpContext()` priority rules (signed-out beats
+everything, locked beats everything except signed-out, connection-lost beats the banners but not a
+modal) — 12/12 passing, 70/70 full suite. Live via Playwright: F1 on the sign-in screen opens "Sign in
+and choose a desk"; searching "cannot sign in" surfaces the rewritten "Cannot sign in" article; F1 on the
+lock screen opens "Console locked"; F1 while the connection-lost banner is showing opens "Connection
+lost". Typecheck clean. No console errors beyond the same unrelated favicon 404.
+
+**Yassine's "done when" bar for this point, checked off**: every state reachable and tested (code rules,
+lockout, resend timer, idle lock) — `auth.test.ts` (9) plus live verification across all three commits;
+nothing reachable without a session — `App.tsx`'s gate; `helpContext()` routes sign-in/lock-screen/
+connection-lost/sign-in-problems — this commit, verified live above.

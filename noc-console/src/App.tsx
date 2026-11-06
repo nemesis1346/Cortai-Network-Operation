@@ -31,8 +31,24 @@ export default function App() {
   if (!server) return <p className="empty" style={{ padding: 24 }}>Connecting…</p>
   // The mock "server" connects regardless of session (lane timers/ladder run
   // either way) — this is the only thing gating the console UI itself.
-  if (auth.status === 'signed-out') return <SignInScreen />
-  if (auth.status === 'locked') return <LockScreen />
+  // HelpModal comes along on both screens too: F1 still needs to reach the
+  // sign-in/lock-screen articles while they're what's actually on screen.
+  if (auth.status === 'signed-out') {
+    return (
+      <>
+        <SignInScreen />
+        <HelpModal />
+      </>
+    )
+  }
+  if (auth.status === 'locked') {
+    return (
+      <>
+        <LockScreen />
+        <HelpModal />
+      </>
+    )
+  }
 
   return (
     <ViewportGate>

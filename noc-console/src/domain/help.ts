@@ -3,10 +3,12 @@
  * `public/help/help.json` — converted verbatim from Oleg's actual
  * `docs-v2/prototype/help/help.js` deliverable (41 articles, 7 sections, 27
  * figures, 4 diagrams), not rewritten. See docs/V2-BUILD-PLAN.md's Part 7
- * notes for the handful of articles that describe screens this build
- * doesn't have yet (sign-in, lock, connection-lost, History) or an
- * interaction that diverges (a "T" take-next key this build never bound) —
- * flagged there rather than silently edited.
+ * notes for the handful of articles that described screens this build
+ * didn't have yet — sign-in, lock, connection-lost all built in Part 8 (3-6
+ * Nov), their articles' copy updated from password-era to the real OTP flow
+ * to match; History still doesn't exist, and a "T" take-next key this build
+ * deliberately never bound (DECISIONS.md, 3 Nov) — both still flagged there
+ * rather than silently edited.
  */
 export type HelpArticleType = 'start' | 'task' | 'concept' | 'reference' | 'troubleshoot'
 
@@ -129,28 +131,40 @@ export function searchHelp(content: HelpContent, query: string): HelpSearchHit[]
  * fixed priority order. Takes plain booleans/ids rather than `UiState`
  * directly — `domain/` sits below `store/` in this project's layering, and
  * this keeps it that way; the caller (the modal, or wherever F1 is handled)
- * assembles these from `ui`/`server`. Rows this build has no screen for yet
- * (sign-in, lock, offline, History) are left out rather than mapped to
- * something approximate.
+ * assembles these from `ui`/`server`/`auth`/`connection`. `signedOut`/
+ * `locked` go first and are mutually exclusive with everything else here —
+ * nothing else can be true while the console itself isn't even mounted
+ * (Part 8, 3-6 Nov). `connectionOffline` sits below the modal-like states
+ * (a blocking dialog still wins) but above the queue/camera/escalation
+ * banners — it's a console-wide condition, not scoped to one of those.
+ * `hasOpenLanes` with nothing else true now only means "History" at the
+ * screen level, but that article doesn't exist yet (Part 9) — falls through
+ * to `lane-workspace` same as before, flagged here rather than guessed at.
  */
 export function helpContext(ctx: {
+  signedOut: boolean
+  locked: boolean
   wallOpen: boolean
   shiftReportOpen: boolean
   settingsOpen: boolean
   closingIncidentId: string | null
   shortcutsOpen: boolean
   paletteOpen: boolean
+  connectionOffline: boolean
   queueRefusal: string | null
   viewingCameraId: string | null
   hasEscalation: boolean
   hasOpenLanes: boolean
 }): string {
+  if (ctx.signedOut) return 'sign-in'
+  if (ctx.locked) return 'lock-screen'
   if (ctx.wallOpen) return 'camera-wall'
   if (ctx.shiftReportOpen) return 'shift-report'
   if (ctx.settingsOpen) return 'settings'
   if (ctx.closingIncidentId) return 'close-incident'
   if (ctx.shortcutsOpen) return 'keyboard-shortcuts'
   if (ctx.paletteOpen) return 'command-palette'
+  if (ctx.connectionOffline) return 'connection-lost'
   if (ctx.queueRefusal) return 'lane-limit'
   if (ctx.viewingCameraId) return 'camera-view'
   if (ctx.hasEscalation) return 'escalation'

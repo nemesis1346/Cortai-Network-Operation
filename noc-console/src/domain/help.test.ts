@@ -46,9 +46,9 @@ describe('searchHelp', () => {
 
 describe('helpContext', () => {
   const base = {
-    wallOpen: false, shiftReportOpen: false, settingsOpen: false, closingIncidentId: null,
-    shortcutsOpen: false, paletteOpen: false, queueRefusal: null, viewingCameraId: null,
-    hasEscalation: false, hasOpenLanes: false,
+    signedOut: false, locked: false, wallOpen: false, shiftReportOpen: false, settingsOpen: false,
+    closingIncidentId: null, shortcutsOpen: false, paletteOpen: false, connectionOffline: false,
+    queueRefusal: null, viewingCameraId: null, hasEscalation: false, hasOpenLanes: false,
   }
   it('falls back to console-overview with nothing open', () => {
     expect(helpContext(base)).toBe('console-overview')
@@ -61,5 +61,16 @@ describe('helpContext', () => {
   })
   it('escalation only wins once nothing higher-priority is open', () => {
     expect(helpContext({ ...base, hasEscalation: true, hasOpenLanes: true })).toBe('escalation')
+  })
+  it('signed-out beats everything, including states that could never co-occur with it', () => {
+    expect(helpContext({ ...base, signedOut: true, wallOpen: true, hasEscalation: true })).toBe('sign-in')
+  })
+  it('locked beats everything except signed-out', () => {
+    expect(helpContext({ ...base, locked: true, hasEscalation: true })).toBe('lock-screen')
+    expect(helpContext({ ...base, signedOut: true, locked: true })).toBe('sign-in')
+  })
+  it('connection-lost beats the queue/camera/escalation banners but not a modal', () => {
+    expect(helpContext({ ...base, connectionOffline: true, hasEscalation: true })).toBe('connection-lost')
+    expect(helpContext({ ...base, connectionOffline: true, settingsOpen: true })).toBe('settings')
   })
 })

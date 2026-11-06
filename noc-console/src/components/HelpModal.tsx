@@ -3,7 +3,7 @@ import type { HelpContent } from '../domain/help'
 import { ARTICLE_TYPE_LABEL, helpContext, prevNextArticle, searchHelp } from '../domain/help'
 import { renderHelpBody } from '../domain/helpRender'
 import { useHelpContent } from '../hooks/useHelpContent'
-import { useServer, useStore, useUi } from '../store/context'
+import { useAuth, useConnection, useServer, useStore, useUi } from '../store/context'
 import { mostEscalatedIncident } from '../store/selectors'
 
 function HelpTree({
@@ -133,6 +133,8 @@ export function HelpModal() {
   const store = useStore()
   const server = useServer()
   const ui = useUi()
+  const auth = useAuth()
+  const connection = useConnection()
   const help = useHelpContent(ui.helpOpen)
   const [articleId, setArticleId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -150,12 +152,15 @@ export function HelpModal() {
     if (!ui.helpOpen || !help.content || articleId) return
     const picked = server
       ? helpContext({
+          signedOut: auth.status === 'signed-out',
+          locked: auth.status === 'locked',
           wallOpen: ui.wallOpen,
           shiftReportOpen: ui.shiftReportOpen,
           settingsOpen: ui.settingsOpen,
           closingIncidentId: ui.closingIncidentId,
           shortcutsOpen: ui.shortcutsOpen,
           paletteOpen: ui.paletteOpen,
+          connectionOffline: connection.status === 'offline',
           queueRefusal: ui.queueRefusal,
           viewingCameraId: ui.viewingCameraId,
           hasEscalation: !!mostEscalatedIncident(server, Date.now()),
