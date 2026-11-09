@@ -19,7 +19,7 @@ the center exists.
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
 | 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **Done**, 6 Nov. |
-| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Decision note done**, 9 Nov (`DECISIONS.md`) — build not started. |
+| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **In progress** — 1/N done, 9 Nov: every close now seals a Record (`RecordModal`), History list not started. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
 ### Part 7 sub-parts
@@ -736,3 +736,46 @@ lost". Typecheck clean. No console errors beyond the same unrelated favicon 404.
 lockout, resend timer, idle lock) — `auth.test.ts` (9) plus live verification across all three commits;
 nothing reachable without a session — `App.tsx`'s gate; `helpContext()` routes sign-in/lock-screen/
 connection-lost/sign-in-problems — this commit, verified live above.
+
+## Part 9 notes (1/N — every close seals a Record)
+
+Per the decision note above (9 Nov): point 2 said every close should seal a Record, not just closes
+where a 'report' next-step was ticked; point 4 said `RecordModal` replaces `ReportModal` outright. This
+commit is both of those — the data layer and the modal, nothing from History yet (that's its own, later
+commit, same "one by one" pacing as Part 8).
+
+`ClosedIncidentSummary` gained `operator: Operator`, set from `shift.operator` in the mock — needed for
+History's operator filter later, harmless to add now while touching this type anyway.
+`IncidentReport` gained `transcript: TranscriptLine[]`, filtered to the incident the same way `ledger`/
+`evidence` already were — the raw data (AI callouts, mic-open/close, ladder/siren/strobe lines) already
+existed on `Snapshot.transcript`, it just never reached this bundle before, because nothing needed a
+Transcript tab until now.
+
+`RecordModal` reorganizes the exact same report data the old `ReportModal` showed into 5 tabs, matching
+the `incident-records` help article's table (Evidence/Timeline/Transcript/Notes/Operator) rather than
+inventing a different split. Timeline and Transcript reuse `LaneWorkspace`'s own `.ledger`/`.led`/`.tline`
+styling and its `ledgerKindLabel()` helper — this is the same shape of data (a closed-off, immutable
+version of the same lane), so it reads the same way, and it was already proven as a pattern there rather
+than something new to get wrong. The old "System response" (ladder/siren/strobe/two-way) block and the
+summary line (operator/duration/visits) now live under Operator, since nothing else in the tab list
+needed them and they're squarely "how/when this operator handled it." Dropped: a SHA-256 hash and a
+"viewed by" log (decision note #1 — nothing real to hash, single operator means nothing to log).
+
+`NextStepId` dropped `'report'` entirely rather than keeping it as an inert checkbox — sealing is now
+unconditional, so a checkbox that no longer does anything would just be confusing. `CloseoutModal`'s
+default `steps` changed from `['report']` to `[]` accordingly; closing with zero next steps ticked is
+now the normal path, not an edge case, which is exactly what the live verification below exercises.
+
+Verified live (Playwright): took an alert, closed it with a memo and **no** next steps ticked — the
+Record opened immediately anyway. All 5 tabs showed real data for that incident: Evidence (no stills yet
+this fast, but the subject-description block populated), Timeline (full event list, "Incident opened"
+through the closing-memo line, in order), Transcript (the AI callout and system lines), Notes (the memo
+text), Operator (operator/desk, duration, ladder-reached summary). "Copy link" produced a "Record link
+copied" toast. Esc and ✕ both closed it. No console errors beyond the same unrelated favicon 404 noted
+in Part 8.
+
+Typecheck clean, 70/70 tests passing (no new tests — this step renamed/reorganized data already covered
+by existing coverage; `store.test.ts`'s two closeout assertions updated to pass `[]` instead of
+`['report']` and read `ui.record` instead of `ui.report`).
+
+Not done yet, deliberately: History list (browsing past Records, filters, search) — next commit.

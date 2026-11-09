@@ -45,8 +45,9 @@ src/components/           LaneWorkspace (v2 Part 1: the focused lane, full width
                            hour, closed-this-shift table), SettingsModal (v2 Part 7: theme + typeface,
                            `domain/appearance.ts`), CommandPalette (v2 Part 7: Ctrl/⌘+K, search lanes/
                            queue/actions), HelpModal (v2 Part 7: F1, real content from public/help/,
-                           search + tree + article + figure lightbox), watch list, closeout/report
-                           modals, mic-confirm dialog, toasts, shortcuts
+                           search + tree + article + figure lightbox), watch list, closeout/record
+                           modals (v2 Part 9: every close seals a Record, `RecordModal` replaces the old
+                           `ReportModal`), mic-confirm dialog, toasts, shortcuts
 src/styles/tokens.css     All design tokens; audit values, mockup originals in comments
 ```
 

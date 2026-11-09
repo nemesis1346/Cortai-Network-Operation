@@ -60,7 +60,7 @@ export function ShiftReportModal() {
   return (
     <div className="modal-backdrop" onClick={() => store.setShiftReportOpen(false)}>
       <div
-        className="modal report shift-report"
+        className="modal shift-report"
         role="dialog"
         aria-modal="true"
         aria-labelledby="sr-title"

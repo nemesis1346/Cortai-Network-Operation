@@ -383,6 +383,7 @@ export class MockNocClient implements NocClient {
       severity: alert?.severity ?? 3, insidePropertyLine: alert?.insidePropertyLine ?? false,
       openedAt: inc.openedAt, closedAt: new Date(nowMs).toISOString(),
       attendedSec: inc.attendedSec, totalSec: age, memo: inc.memo ?? '', nextSteps: inc.nextSteps ?? [],
+      operator: this.snap.shift.operator,
     }
     this.snap.closedThisShift = [summary, ...this.snap.closedThisShift]
 
@@ -690,6 +691,7 @@ export class MockNocClient implements NocClient {
       operator: this.snap.shift.operator,
       ledger: this.snap.ledger.filter((e) => e.incidentId === inc.id),
       evidence: this.snap.evidence.filter((e) => e.incidentId === inc.id),
+      transcript: this.snap.transcript.filter((t) => t.incidentId === inc.id),
     })
   }
 

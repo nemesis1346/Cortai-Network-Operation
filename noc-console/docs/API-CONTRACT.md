@@ -505,3 +505,45 @@ and 12 on the article checked); Esc closed the lightbox first, the whole modal o
 Typecheck clean, 58/58 tests passing (9 new, covering `flatArticleOrder`/`prevNextArticle`, `searchHelp`'s
 weighting and all-terms-must-match behavior, and `helpContext`'s priority order against a small fixture
 — not the full 80KB real content, kept fast and focused).
+
+**9 Nov — v2 Part 9 (1/N), every close seals a Record:**
+Per the Part 9 decision note in `DECISIONS.md` (9 Nov): closing an incident no longer produces a report
+conditionally on a 'report' next-step checkbox — it always seals a Record. `ReportModal` is gone,
+replaced by `RecordModal`.
+- `src/api/types.ts`: `NextStepId` drops `'report'` (there's nothing left to opt into — sealing is
+  unconditional, and nothing else keyed off that id). `ClosedIncidentSummary` gains `operator: Operator`
+  — needed for History's (Part 9, next) operator filter; `ShiftReportModal` doesn't need it, one operator
+  per shift there. `IncidentReport` gains `transcript: TranscriptLine[]` (this incident's lines only) —
+  the data existed on `Snapshot.transcript` already, just never surfaced through this bundle.
+- `src/api/mock/MockNocClient.ts#closeIncident`: `ClosedIncidentSummary.operator` set from
+  `this.snap.shift.operator`. `#buildReport`: `transcript` filtered the same way `ledger`/`evidence`
+  already were.
+- `src/store/store.ts`: `UiState.report` → `UiState.record` (and `closeReport` → `closeRecord`);
+  `submitCloseout` sets it unconditionally instead of gating on `nextSteps.includes('report')`.
+- `src/components/CloseoutModal.tsx`: dropped the "Create incident report" checkbox (STEPS list), since
+  there's no longer a choice to make there; default `steps` is now `[]`, not `['report']`.
+- `src/components/RecordModal.tsx` (new, replaces `ReportModal.tsx`): same underlying data, reorganized
+  into 5 tabs matching the `incident-records` help article's table exactly — Evidence (stills + subject
+  description), Timeline (full ledger, reusing `domain/rules.ts#ledgerKindLabel` and the `.ledger`/`.led`
+  styling `LaneWorkspace` already has), Transcript (same `.ledger`/`.tline` styling), Notes (closing
+  memo, in-incident notes, next steps queued), Operator (who/when + the old "system response" summary —
+  ladder stages, siren/strobe, two-way). No SHA-256 hash and no "viewed by" log per the decision note
+  (nothing real to hash; single operator, nothing to log). Added "Copy link" (copies a `/records/:id`
+  URL — no backend to resolve it yet, matches the pattern `ShiftReportModal`'s "Copy summary" already
+  uses for clipboard + toast). Export PDF intentionally not built (out of scope per Yassine, 3 Nov).
+- `src/hooks/useHotkeys.ts`: the 3 `ui.report` blocking-flow checks renamed to `ui.record`.
+- `src/styles/layout.css`: `.report-body` → `.record-body`; `.modal.report` (680px width) →
+  `.modal.record`; dropped the now-pointless `report` class from `ShiftReportModal`'s own modal (it
+  already carries `.shift-report`, which alone already set its real 760px width — `report` there did
+  nothing but apply then immediately get overridden by source order).
+
+Verified live: closing an incident with the next-steps panel left entirely untouched (zero next steps
+ticked) still opens a Record immediately — the behavior this whole change is for. All 5 tabs render
+real content for a freshly-closed incident (Evidence showed the subject description; Timeline showed
+the full event list including "Incident opened" and the closing-memo line; Transcript showed the AI
+callout and system lines; Notes showed the memo; Operator showed the operator, duration and ladder
+summary). Copy link produced the "Record link copied" toast. Escape and the ✕ both close it.
+
+Typecheck clean, 70/70 tests passing (no new tests this step — pure rename/reorg of existing, already-
+covered data; `store.test.ts`'s two closeout tests updated to pass `[]` instead of `['report']` and to
+read `ui.record`).

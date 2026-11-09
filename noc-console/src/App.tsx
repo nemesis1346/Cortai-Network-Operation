@@ -5,8 +5,8 @@ import { ConnectionBanner } from './components/ConnectionBanner'
 import { EscalationBar } from './components/EscalationBar'
 import { HelpModal } from './components/HelpModal'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
+import { RecordModal } from './components/RecordModal'
 import { Center, LeftRail, RightRail } from './components/Regions'
-import { ReportModal } from './components/ReportModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ShiftReportModal } from './components/ShiftReportModal'
 import { LockScreen } from './components/LockScreen'
@@ -65,7 +65,7 @@ export default function App() {
         <StatusBar server={server} />
       </div>
       <CloseoutModal />
-      <ReportModal />
+      <RecordModal />
       <ShiftReportModal />
       <SettingsModal />
       <CommandPalette />

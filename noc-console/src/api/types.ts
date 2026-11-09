@@ -230,7 +230,7 @@ export interface Incident {
   nextSteps?: NextStepId[]
 }
 
-export type NextStepId = 'report' | 'police' | 'owner' | 'plate' | 'patrol' | 'tune'
+export type NextStepId = 'police' | 'owner' | 'plate' | 'patrol' | 'tune'
 
 /* ---------- Ledger, evidence, transcript ---------- */
 
@@ -339,9 +339,12 @@ export interface ShiftStats {
 
 /**
  * v2 ShiftReportModal: "closed-this-shift table", KPIs and the by-hour
- * histogram all derive from this. Stores severity/insidePropertyLine, not a
- * precomputed priority — same reason nothing else in the app stores one:
- * domain/rules.ts#derivePriority is the one place priority gets computed.
+ * histogram all derive from this. Also History's (Part 9) one row per
+ * closed incident — hence `operator`, needed for its operator filter but
+ * not for anything in ShiftReportModal (one operator per shift there).
+ * Stores severity/insidePropertyLine, not a precomputed priority — same
+ * reason nothing else in the app stores one: domain/rules.ts#derivePriority
+ * is the one place priority gets computed.
  */
 export interface ClosedIncidentSummary {
   incidentId: string
@@ -355,6 +358,7 @@ export interface ClosedIncidentSummary {
   totalSec: number
   memo: string
   nextSteps: NextStepId[]
+  operator: Operator
 }
 
 /* ---------- Snapshot + events ---------- */
@@ -447,4 +451,6 @@ export interface IncidentReport {
   operator: Operator
   ledger: LedgerEvent[]
   evidence: EvidenceStill[]
+  /** This incident's lines only, in order — Record modal's Transcript tab. */
+  transcript: TranscriptLine[]
 }

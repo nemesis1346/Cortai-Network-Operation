@@ -37,7 +37,9 @@ export interface UiState {
   /** Waiting for the operator to confirm moving the mic. Replaces window.confirm (C7). */
   micConfirm: { targetIncidentId: string; fromIncidentId: string; then: 'mic' | 'focus' } | null
   closingIncidentId: string | null
-  report: IncidentReport | null
+  /** Sealed at close — every close produces one (Part 9 decision note #2),
+   * not just closes where a 'report' step used to be ticked. */
+  record: IncidentReport | null
   shortcutsOpen: boolean
   shiftReportOpen: boolean
   settingsOpen: boolean
@@ -72,7 +74,7 @@ const initialUi: UiState = {
   queueRefusal: null,
   micConfirm: null,
   closingIncidentId: null,
-  report: null,
+  record: null,
   shortcutsOpen: false,
   shiftReportOpen: false,
   settingsOpen: false,
@@ -326,11 +328,11 @@ export class NocStore {
       this.toast(r.error.message, 'warn')
       return false
     }
-    this.patchUi({ closingIncidentId: null, report: nextSteps.includes('report') ? r.value : null })
+    this.patchUi({ closingIncidentId: null, record: r.value })
     return true
   }
-  closeReport(): void {
-    this.patchUi({ report: null })
+  closeRecord(): void {
+    this.patchUi({ record: null })
   }
 
   /* ---------- plain UI state ---------- */

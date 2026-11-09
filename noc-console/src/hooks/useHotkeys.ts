@@ -18,7 +18,7 @@ import type { NocStore } from '../store/store'
  * (audit C1), with a modifier held, or while a modal is open — except the
  * palette and Help, which (like real command palettes and most apps' own
  * help key) open even from inside a text field; neither stacks over a
- * genuinely blocking flow (closeout, report, mic confirm).
+ * genuinely blocking flow (closeout, record, mic confirm).
  */
 export function useHotkeys(store: NocStore): void {
   useEffect(() => {
@@ -26,21 +26,21 @@ export function useHotkeys(store: NocStore): void {
       if (!e.repeat && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault() // stop the browser's own Ctrl/Cmd+K (address bar search) either way
         const { ui } = store.getState()
-        if (ui.closingIncidentId || ui.report || ui.micConfirm) return
+        if (ui.closingIncidentId || ui.record || ui.micConfirm) return
         store.setPaletteOpen(!ui.paletteOpen)
         return
       }
       if (!e.repeat && e.key === 'F1') {
         e.preventDefault() // browsers rarely do anything with F1 themselves, but never let it leak out
         const { ui } = store.getState()
-        if (ui.closingIncidentId || ui.report || ui.micConfirm) return
+        if (ui.closingIncidentId || ui.record || ui.micConfirm) return
         store.setHelpOpen(!ui.helpOpen)
         return
       }
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
       if (isTypingTarget(e.target)) return
       const { server, ui } = store.getState()
-      if (!server || ui.closingIncidentId || ui.report || ui.micConfirm || ui.shortcutsOpen) return
+      if (!server || ui.closingIncidentId || ui.record || ui.micConfirm || ui.shortcutsOpen) return
 
       const lanes = incidentsByLane(server)
       const key = e.key.toLowerCase()

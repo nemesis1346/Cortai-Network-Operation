@@ -7,8 +7,7 @@ import { useNow } from '../hooks/useNow'
 import { useServer, useStore, useUi } from '../store/context'
 
 const STEPS: { id: NextStepId; label: string; hint: string }[] = [
-  { id: 'report', label: 'Create incident report', hint: 'Compiles stills, transcript, ledger and timings into a PDF' },
-  { id: 'police', label: 'Forward to police', hint: 'Report plus plate and clip sent to the local detachment' },
+  { id: 'police', label: 'Forward to police', hint: 'Record plus plate and clip sent to the local detachment' },
   { id: 'owner', label: 'Notify site owner / tenants', hint: 'Summary emailed to the site contact list in the morning' },
   { id: 'plate', label: 'Add plate to watch list', hint: 'Future sightings raise priority automatically' },
   { id: 'patrol', label: 'Request patrol pass', hint: "Adds a drive-by to tonight's mobile route" },
@@ -29,7 +28,7 @@ export function CloseoutModal() {
   const memoRef = useRef<HTMLTextAreaElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const [memo, setMemo] = useState('')
-  const [steps, setSteps] = useState<NextStepId[]>(['report'])
+  const [steps, setSteps] = useState<NextStepId[]>([])
   const [showError, setShowError] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
 
@@ -38,7 +37,7 @@ export function CloseoutModal() {
   useEffect(() => {
     if (!ui.closingIncidentId) return
     setMemo('')
-    setSteps(['report'])
+    setSteps([])
     setShowError(false)
     setConfirmDiscard(false)
     const t = setTimeout(() => memoRef.current?.focus(), 60)

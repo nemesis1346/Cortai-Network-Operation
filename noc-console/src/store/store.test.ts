@@ -68,9 +68,9 @@ describe('store over the mock client', () => {
     store.openCloseout(id)
     expect(await store.submitCloseout('too short', [])).toBe(false)
     expect(server(store).incidents.length).toBe(1)
-    expect(await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', ['report'])).toBe(true)
+    expect(await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', [])).toBe(true)
     expect(server(store).incidents.length).toBe(0)
-    expect(store.getState().ui.report).not.toBeNull()
+    expect(store.getState().ui.record).not.toBeNull()
     expect(alertCounts(server(store)).working).toBe(0)
   })
 
@@ -337,7 +337,7 @@ describe('shift report (v2 Part 7)', () => {
     await store.openIncident('a1')
     const id = server(store).incidents[0]!.id
     store.openCloseout(id)
-    await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', ['report'])
+    await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', [])
     const closed = server(store).closedThisShift
     expect(closed.length).toBe(1)
     expect(closed[0]!.incidentId).toBe(id)
