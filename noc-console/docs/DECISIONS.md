@@ -20,10 +20,10 @@ built — usually because it needs something from Yassine first, like the Lionst
 |---|---|---|
 | 3 · 4th-lane refusal | Add "Page second desk" as a third button. | **Done** — `Queue.tsx` refusal banner, `NocClient.requestDeskPage` |
 | 4 · Held tab | Keep it, add the Hold action. Exists in phase 1; suppressed/auto-logged alerts use it. | **Done** — `NocClient.holdAlert`, "Hold" button on New-tab rows |
-| 5 · Report vs. record | Merge into the sealed Record, drop Modal O5 — as long as the record keeps the full report content and the next-steps queue. | **Blocked** — the sealed-record/History concept doesn't exist in phase 1 yet and is entangled with the still-open interaction model (History is new-in-v2, not a v1.2 carryover). Not building a half version of it before the Figma call; `ReportModal` stays as-is until then. |
+| 5 · Report vs. record | Merge into the sealed Record, drop Modal O5 — as long as the record keeps the full report content and the next-steps queue. | **Documented** — decided in full below (Part 9 decision note, 9 Nov), unblocked by Yassine 3 Nov. Not yet built. |
 | 6 · Roles | Single operator role for now, keep the siren rule as decided (any operator can fire it without an incident, 600ms hold, logged). Supervisor matrix comes at integration — don't build role UI yet. | **Deferred** — no action needed, matches what phase 1 already does (no role system). |
 | 7 · Ladder timings | Per site from the site record, 30/45/60 (the existing default) as fallback. | **Done** — `Site.ladderStages?`, seeded on 3 Tait Street as `[0, 8, 20, 35]` to prove it's live |
-| 8 · Retention | 90d/7d are placeholders; Yassine confirming with the client. Not blocking. | **Deferred** — no code depends on a retention number yet (no History feature built). |
+| 8 · Retention | 90d/7d are placeholders; Yassine confirming with the client. Not blocking. | **Deferred** — still placeholder-only; Part 9 decision note below confirms this extends to History too, not just the Record view. |
 
 ## Deviations from the brief
 
@@ -69,3 +69,76 @@ Breakdown and order in `V2-BUILD-PLAN.md` (Parts 8–10). Decisions made while b
 | Expired code vs. wrong code | `000000` (expired) does **not** count toward the 3-wrong-attempts lock — the operator didn't mistype anything, the code just aged out. Only an actually-wrong code increments the counter. Not stated either way in the brief; this is the more defensible reading and is what `MockNocClient.verifyCode` implements (`src/api/mock/auth.test.ts` covers both paths). |
 | Node 24/25 test fix | Already done — `125abfb`, 26 Oct, before this message arrived. Nothing further needed for this point. |
 | Sign-in/lock/connection-lost help articles | `help.json`'s `sign-in`, `sign-in-problems`, `lock-screen`, `connection-lost` articles are Oleg's verbatim v1.2 copy, written for the password-era design (e.g. "Enter your password", "five failed attempts"). They'll need real content edits once the OTP screens exist — the "import verbatim" rule from Part 7 was about not freely rewriting Oleg's words, not about keeping copy that describes a flow the app no longer has. Edits land with the sign-in build, not before. |
+
+# Part 9 decision note: Record and History (Marco, 9 Nov)
+
+Written before any Part 9 code, per Yassine's own instruction for this point. Grounded in three sources
+that mostly agree: `OPEN-QUESTIONS.md` #5/#8 and `DEVIATIONS-FROM-BRIEF.md` #7/#14 (the original brief
+vs. v2 gap), `docs-v2/docs/COMPONENTS.md`'s `HistoryItem`/`HistoryGroup`/`HistoryFilters`/`RecordModal`
+spec, and `help.json`'s `incident-records`/`close-incident`/`shift-report` articles (Oleg's own, shipped
+verbatim since Part 7, already describing this exact feature in detail). Where Yassine's 3 Nov message
+gives something more specific than those older sources, his wins — noted inline below.
+
+**1. What the sealed Record contains.** Required (per `DECISIONS.md` #5, already settled): the full
+report content and the next-steps queue. Built from data that already exists — `IncidentReport`
+(`types.ts`) already bundles `incident`/`alert`/`site`/`watch`/`operator`/`ledger`/`evidence`; the memo
+and next-steps live on `CloseIncidentInput`/`ClosedIncidentSummary`. Adding, to match both `COMPONENTS.md`'s
+`RecordModal` and the `incident-records` help article (they independently describe the same 5 tabs):
+**Evidence** (stills — no real clip/video, out of scope per Yassine's own list; no SHA-256 hash either,
+there's no real file to hash against, a `string` field pretending to be one would be an invented number),
+**Timeline** (the ledger, already captured), **Transcript** (filtered by `incidentId`, already captured),
+**Notes** (the closeout memo + notes filed during the incident, already captured), **Operator** (who
+handled it, when — no "viewed by" access log: that only means something once more than one operator
+exists, which is `DECISIONS.md` #6's deferred role matrix, not this point's job to build early).
+`ClosedIncidentSummary` gains one field it's missing today: `operator` (name/id) — needed for the History
+filter Yassine asks for below, and trivial to add since `MockNocClient.closeIncident` already has
+`this.snap.shift.operator` in scope when it builds the summary.
+
+**2. When it's sealed, and immutability.** On close, right after the memo/next-steps step — same moment
+`close-incident`'s help article already describes ("The incident moves to History as a sealed, read-only
+record"), same moment `STATES.md`'s `closing → closed → free` transition already lists "record sealed" as
+one of its effects. **Every** closed incident gets a sealed Record — not gated on the `'report'`
+next-step checkbox the way `ReportModal` is today (that gate goes away; `'report'` becomes just one of
+the optional follow-up flags shown inside the Record, same as `'police'`/`'owner'`/etc., not a condition
+on whether a Record exists at all). This is the one real behavior change from current closeout: today,
+skip the `report` checkbox and nothing opens; after this, every close produces a Record regardless,
+because History has to show every closed incident, not just the ones someone happened to flag. Fully
+immutable once sealed — the help article's "a supervisor can add an addendum" exception is cut for now,
+same reasoning as `DECISIONS.md` #6: no role system exists yet to make "supervisor" mean anything, and a
+half-built addendum feature with no one who can actually use it isn't worth the surface area.
+
+**3. History list.** Yassine's own filter list — **date, site, priority, operator** — is what's built,
+not `COMPONENTS.md`'s older `HistoryFilters` (segmented All / P1–P2 / Referred). The two don't reconcile
+cleanly: "Referred" needs an outcome classification (Resolved / False alarm / Referred to police) that
+exists in Oleg's original close-incident design but was never carried into this build's actual
+`CloseoutModal` (next-steps checkboxes only, no outcome field) — adding one now would be scope beyond
+what Yassine actually asked for this point, so it's not happening; his filter list is used as given.
+Columns: **Closed** (date/time), **Site**, **Priority**, **Title** (the alert), **Duration**, **Operator**
+— covers every one of his four filters plus enough context to identify the incident; `Lane`/`Outcome`
+from `HistoryItem`'s older spec are left out (lane is a transient slot, not meaningful history; outcome
+doesn't exist in this build's data, see above). Sort: newest first (`closedAt` desc) — matches both
+`ClosedIncidentSummary`'s existing convention and every design source. Search: a free-text field over
+site/title, alongside the four filters, since a filter-only list with no search would be a real step
+down from what Oleg's spec and the help copy both promise. Empty states, reusing `COPY.md`'s copy nearly
+verbatim: **"No closed incidents yet — Closed incidents land here with their full record."** and **"No
+match for '{q}' — try a different site, title or operator."** (adapted from "Search covers site, camera,
+type and record number" since this build's search doesn't reach camera/record-number).
+
+Scope, not in either Yassine's ask or the older design docs but load-bearing for what gets built: History
+shows incidents **closed this session** — the same underlying data `ShiftReportModal`'s table already
+uses (`Snapshot.closedThisShift`), not a separately-persisted, multi-day store. Oleg's spec describes a
+shift-scoped list with a 7-day search reaching further back; building real multi-day persistence is
+outside "frontend and mock data only," and faking several days of history would mean inventing records
+that never happened — exactly what Yassine's "no invented numbers" rule rules out. The 90-day-kept/
+7-day-search language from `OPEN-QUESTIONS.md` #8 and the help article stays exactly what `DECISIONS.md`
+#8 already says it is: placeholder copy, not logic anything filters against.
+
+**4. Replacing `ReportModal`.** `RecordModal` (new) replaces it outright — `ReportModal.tsx` and its
+`ui.report`/`closeReport`/the `nextSteps.includes('report')` gate in `submitCloseout` all get removed
+once History/Record exist and are wired to the same data. "Copy link" is built (a real mock action —
+copies an identifier, toasts "Link copied" per `COPY.md`'s existing toast copy). "Export PDF" is not —
+Yassine's 3 Nov message lists "report PDF generation" explicitly under out-of-scope.
+
+**5. Retention.** No change from `DECISIONS.md` #8: 90d/7d stay placeholder constants/copy, confirmed
+(not just by default but deliberately, per the scope note in point 3 above) that no History filtering,
+search-window enforcement, or data-expiry logic depends on either number in this build.
