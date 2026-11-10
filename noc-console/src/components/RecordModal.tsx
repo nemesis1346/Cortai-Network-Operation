@@ -57,7 +57,7 @@ export function RecordModal() {
     const link = `${location.origin}/records/${inc.id}`
     navigator.clipboard
       .writeText(link)
-      .then(() => store.toast('Record link copied', 'info'))
+      .then(() => store.toast('Link copied', 'info'))
       .catch(() => store.toast('Could not copy — clipboard unavailable', 'warn'))
   }
 

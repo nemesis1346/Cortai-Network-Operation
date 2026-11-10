@@ -95,6 +95,7 @@ function buildCommands(
   const navCommands: Command[] = [
     { id: 'wall', label: 'Open camera wall', group: 'Navigation', run: () => store.toggleWall() },
     { id: 'shift', label: 'Shift report', group: 'Navigation', run: () => store.setShiftReportOpen(true) },
+    { id: 'history', label: 'History', group: 'Navigation', run: () => store.setHistoryOpen(true) },
     { id: 'settings', label: 'Settings', group: 'Navigation', run: () => store.setSettingsOpen(true) },
     { id: 'page2', label: 'Page second desk', group: 'Navigation', run: () => void store.pageSecondDesk() },
     { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Navigation', run: () => store.setShortcutsOpen(true) },

@@ -27,6 +27,11 @@ export interface NocClient {
   /** Parks a 'new' alert without opening a lane. Yassine, 1 Oct: keep the Held tab, add this action. */
   holdAlert(alertId: string): Promise<Result<null>>
   closeIncident(incidentId: string, input: CloseIncidentInput): Promise<Result<IncidentReport>>
+  /** History (Part 9): the sealed Record for an already-closed incident,
+   * cached by `closeIncident` at the moment it sealed — not rebuilt, since
+   * the live `Incident` behind it (ladder/siren/strobe/visits) is gone by
+   * the time History re-opens it. */
+  getRecord(incidentId: string): Promise<Result<IncidentReport>>
   setFocus(incidentId: string | null): Promise<Result<null>>
   /** incidentId null releases the mic. Without force, a bound mic returns MIC_BUSY. */
   bindMic(incidentId: string | null, opts?: { force?: boolean }): Promise<Result<null>>

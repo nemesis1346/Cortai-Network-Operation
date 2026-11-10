@@ -4,6 +4,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { ConnectionBanner } from './components/ConnectionBanner'
 import { EscalationBar } from './components/EscalationBar'
 import { HelpModal } from './components/HelpModal'
+import { HistoryModal } from './components/HistoryModal'
 import { MicConfirmDialog } from './components/MicConfirmDialog'
 import { RecordModal } from './components/RecordModal'
 import { Center, LeftRail, RightRail } from './components/Regions'
@@ -65,6 +66,7 @@ export default function App() {
         <StatusBar server={server} />
       </div>
       <CloseoutModal />
+      <HistoryModal />
       <RecordModal />
       <ShiftReportModal />
       <SettingsModal />

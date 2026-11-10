@@ -547,3 +547,49 @@ summary). Copy link produced the "Record link copied" toast. Escape and the ✕ 
 Typecheck clean, 70/70 tests passing (no new tests this step — pure rename/reorg of existing, already-
 covered data; `store.test.ts`'s two closeout tests updated to pass `[]` instead of `['report']` and to
 read `ui.record`).
+
+**10 Nov — v2 Part 9 (2/3), History list:**
+- `src/api/client.ts`: new `NocClient.getRecord(incidentId): Promise<Result<IncidentReport>>` —
+  re-opens an already-sealed Record. Deliberately a lookup, not a rebuild: the live `Incident` behind a
+  closed incident (ladder state, siren/strobe, visit count) is gone from `Snapshot.incidents` by the
+  time History would need it back.
+- `src/api/mock/MockNocClient.ts`: new `private records = new Map<string, IncidentReport>()`, populated
+  in `closeIncident` right after `buildReport` runs (same object `submitCloseout` already uses, not a
+  second derivation of it — that's also a more literal reading of "immutable" than recomputing would be).
+  `getRecord` reads it back, `NOT_FOUND` if the id was never closed.
+- `src/store/store.ts`: `UiState.historyOpen` + `setHistoryOpen`. New `openRecord(incidentId)`: calls
+  `client.getRecord`, sets `ui.record` on success, toasts a warning otherwise (same pattern as `addNote`).
+- `src/components/HistoryModal.tsx` (new): filters — **date, site, priority, operator** (Yassine's own
+  list; not `COMPONENTS.md`'s older All/P1–P2/Referred, which needs an outcome field `CloseoutModal`
+  doesn't collect) — plus free-text search over site name and alert title. Columns: Closed, Site,
+  Priority, Title, Duration, Operator. Sorted newest-first (`closedThisShift`'s existing order). Scoped
+  to `server.closedThisShift` only — this session, not a fabricated multi-day store. Filters/search are
+  local component state; only the open/closed flag (`historyOpen`) lives in the store, since `TopBar`
+  and `CommandPalette` both need to trigger it. Rows are clickable (`store.openRecord`), opening
+  `RecordModal` on top of `HistoryModal` rather than replacing it — both are independent
+  `modal-backdrop`s, so this fell out of `App.tsx`'s mount order (History before Record) for free.
+  Reuses `ShiftReportModal`'s `.sr-table-wrap`/`.sr-table` CSS rather than a parallel table style — same
+  visual spec, just with clickable rows.
+- `src/hooks` / modals: guarded `HistoryModal`'s own Escape handler to no-op while `ui.record` is set,
+  so a Record stacked on top of History consumes the first Escape press and History only closes on the
+  second. Without this, both windows share a `window`-level `keydown` listener and a single Escape would
+  have closed both at once.
+- Entry points: `TopBar`'s pills row ("History", next to "Shift report") and `CommandPalette`'s
+  Navigation group.
+- `src/styles/layout.css`: `.modal.history`, `.hist-filters`, `.hist-row`, `.hist-count`.
+- `src/components/RecordModal.tsx`: fixed "Copy link"'s toast text from "Record link copied" to "Link
+  copied" to match the decision note's wording exactly (`COPY.md`'s existing toast copy) — a wording
+  slip in the previous commit, caught while cross-checking this one against the decision note.
+
+Verified live: empty History (nothing closed) shows "No closed incidents yet…"; closed two incidents,
+reopened History via the command palette — both listed newest-first with a correct count line; a
+nonsense search produced the exact "No match for '…'" copy; a non-matching priority filter produced 0
+rows and the filter-only empty copy, reverting it brought the row back; clicking a row opened its Record
+on top, and the Escape-stacking fix verified exactly as intended (first press closes Record only, second
+closes History). No console errors beyond the same unrelated favicon 404 noted in Part 8.
+
+Typecheck clean, 73/73 tests passing (3 new: a sealed Record carries its operator and `openRecord`
+re-opens the identical cached data rather than rebuilding it; `openRecord` on a never-closed incident
+toasts instead of touching `ui.record`; `setHistoryOpen` toggles the flag).
+
+Not done yet: the `incident-records` help article (same treatment Part 8 gave its 4 articles) — next.

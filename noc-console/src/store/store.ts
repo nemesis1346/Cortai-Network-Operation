@@ -40,6 +40,11 @@ export interface UiState {
   /** Sealed at close — every close produces one (Part 9 decision note #2),
    * not just closes where a 'report' step used to be ticked. */
   record: IncidentReport | null
+  /** History (Part 9): browses `server.closedThisShift`; its own filters/
+   * search are local component state, not store state — they're a pure
+   * view over already-fetched data, same reasoning as CloseoutModal's
+   * local `steps`. */
+  historyOpen: boolean
   shortcutsOpen: boolean
   shiftReportOpen: boolean
   settingsOpen: boolean
@@ -75,6 +80,7 @@ const initialUi: UiState = {
   micConfirm: null,
   closingIncidentId: null,
   record: null,
+  historyOpen: false,
   shortcutsOpen: false,
   shiftReportOpen: false,
   settingsOpen: false,
@@ -333,6 +339,18 @@ export class NocStore {
   }
   closeRecord(): void {
     this.patchUi({ record: null })
+  }
+  /** History (Part 9): re-opens an already-sealed Record by id. */
+  async openRecord(incidentId: string): Promise<void> {
+    const r = await this.client.getRecord(incidentId)
+    if (!r.ok) {
+      this.toast(r.error.message, 'warn')
+      return
+    }
+    this.patchUi({ record: r.value })
+  }
+  setHistoryOpen(open: boolean): void {
+    this.patchUi({ historyOpen: open })
   }
 
   /* ---------- plain UI state ---------- */

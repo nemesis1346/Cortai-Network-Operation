@@ -19,7 +19,7 @@ the center exists.
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
 | 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **Done**, 6 Nov. |
-| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **In progress** — 1/N done, 9 Nov: every close now seals a Record (`RecordModal`), History list not started. |
+| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **2/3 done**, 10 Nov — Record + History built; `incident-records` help article still needs routing + the content edit Part 8 did for its own screens. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
 ### Part 7 sub-parts
@@ -779,3 +779,75 @@ by existing coverage; `store.test.ts`'s two closeout assertions updated to pass 
 `['report']` and read `ui.record` instead of `ui.report`).
 
 Not done yet, deliberately: History list (browsing past Records, filters, search) — next commit.
+
+## Part 9 notes (2/3 — History list)
+
+Per the decision note's point 3: filters are Yassine's own list — **date, site,
+priority, operator** — not `COMPONENTS.md`'s older All/P1–P2/Referred segmented filter (that needs an
+outcome field this build's `CloseoutModal` never collects). Columns: Closed, Site, Priority, Title,
+Duration, Operator. Sort: newest first, same as `closedThisShift` already is. Free-text search over
+site name and alert title, alongside the four filters.
+
+Scoped to `server.closedThisShift` — this session's closed incidents, not a separately-persisted,
+multi-day store (decision note's scope paragraph: building real multi-day persistence is outside
+"frontend and mock data only," and faking several days of history would be inventing records that never
+happened).
+
+The real design problem this part had to solve: **re-opening** a Record from History. A closed
+incident's live `Incident` object (ladder state, siren/strobe, visit count) is gone the moment it closes
+— `MockNocClient.closeIncident` filters it out of `snap.incidents`. `ClosedIncidentSummary` alone isn't
+enough to refill `RecordModal`'s tabs (no ledger, no transcript, no evidence). Rather than trying to
+reconstruct an `IncidentReport` after the fact from whatever scraps survive, `MockNocClient` now just
+**keeps** the one it already built at close time, in a `Map<incidentId, IncidentReport>` (`records`),
+and a new `getRecord(incidentId)` client method (`NocClient` interface, both implementations — well,
+just the mock for now) returns the cached copy. `store.openRecord(incidentId)` calls it and sets
+`ui.record`, same field `submitCloseout` already populates. This is also a more honest implementation of
+"immutable" (decision note #2) than re-deriving it every time would be: it's the literal same object,
+not a fresh recomputation that happens to agree.
+
+`HistoryModal` (new): filters and search are local component state (`useState`), not store state — a
+pure view over data the store already fetched, same reasoning `CloseoutModal`'s local `steps` already
+established. Only `ui.historyOpen` (open/closed) lives in the store, since `TopBar` and `CommandPalette`
+both need to open it. Reuses `ShiftReportModal`'s `.sr-table-wrap`/`.sr-table` CSS outright rather than a
+parallel `.hist-table` — identical visual spec, just with clickable rows (`.hist-row`) that call
+`openRecord`. Opening a Record from a History row mounts `RecordModal` *on top of* `HistoryModal` rather
+than replacing it — both are independent `.modal-backdrop`s already, so this fell out for free from
+mount order in `App.tsx` (`HistoryModal` before `RecordModal`) rather than needing an explicit "return to
+History" state machine.
+
+One real bug caught before shipping, not from a failing test: both modals independently listen for
+Escape on `window`. With a Record open on top of History, a single Escape press would have fired both
+handlers in the same tick and closed both at once — not the "close the top one first" behavior a
+stacked-modal Escape should have. Fixed by guarding `HistoryModal`'s own Escape handler: it no-ops while
+`ui.record` is set, so Record's Escape handler gets the first press and History's gets the second. Found
+by reasoning through the mount-order change above, confirmed with the live stacking check below.
+
+Empty states, per the decision note's §3 (adapted from `COPY.md`): **"No closed incidents yet — Closed
+incidents land here with their full record."** when nothing's closed yet at all, and **"No match for
+'{q}' — try a different site, title or operator."** when a search narrows the list to nothing. Added one
+state the decision note didn't spell out verbatim, for when a *filter* (not search) narrows to nothing
+with no query typed: "No incidents match these filters — try a different site, priority or operator." —
+same register as the other two, not a new copy voice.
+
+`NocClient.getRecord` + `MockNocClient`'s `records` cache: `src/api/client.ts`, `src/api/mock/MockNocClient.ts`.
+`UiState.historyOpen` + `setHistoryOpen`/`openRecord`: `src/store/store.ts`. New: `src/components/
+HistoryModal.tsx`. Entry points: `TopBar`'s pills row (next to "Shift report") and `CommandPalette`'s
+Navigation group. `src/styles/layout.css`: `.modal.history`, `.hist-filters`, `.hist-row`, `.hist-count`.
+
+Verified live (Playwright): History with nothing closed shows the first empty-state copy; Escape closes
+it. Closed two incidents, reopened History via Ctrl+K → "History" (not just the button) — both listed,
+newest first, count line "2 of 2 closed". Typed a nonsense search string — "No match for '…'" copy, exact
+wording. Set the priority filter to a value that didn't match the one closed incident shown — 0 rows,
+filter-only empty copy; set it back to the matching value — 1 row again. Clicked a History row — its
+Record opened on top; first Escape closed the Record and left History open underneath; second Escape
+closed History. No console errors beyond the same unrelated favicon 404.
+
+Typecheck clean, 73/73 tests passing (3 new: a closed incident's Record carries its operator and can be
+re-opened later via `openRecord` with the same data, not a rebuild; `openRecord` on an incident that was
+never closed toasts a warning instead of touching `ui.record`; `setHistoryOpen` toggles the modal flag).
+
+All 5 points from the 9 Nov decision note are now built: sealed Record (1), unconditional sealing (2),
+History list (3), `RecordModal` replacing `ReportModal` (4), retention confirmed placeholder-only (5).
+Not done yet: the `incident-records` help article still describes the old All/P1–P2/Referred filter,
+SHA-256 hashing, a "viewed by" log and Export PDF — same gap Part 8 closed out for its own 4 articles,
+left open here per README's own "still open" note until this point was actually built. Next commit.

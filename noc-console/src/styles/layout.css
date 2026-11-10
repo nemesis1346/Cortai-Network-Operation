@@ -516,6 +516,7 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
 .modal.confirm p:first-of-type { font-weight: 500; color: var(--text-1); }
 .modal.record { width: min(680px, 100%); }
 .modal.shift-report { width: min(760px, 100%); }
+.modal.history { width: min(840px, 100%); }
 .modal.settings { width: min(420px, 100%); }
 
 /* SettingsModal (v2 Part 7): theme + typeface only. */
@@ -689,6 +690,18 @@ kbd { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--te
   letter-spacing: .06em; padding: 4px 8px; border-bottom: 1px solid var(--line);
   position: sticky; top: 0; background: var(--panel); }
 .sr-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle); }
+
+/* HistoryModal (v2 Part 9): filters row + the same table styling
+   ShiftReportModal's closed-this-shift table already uses, since it's the
+   same data shape — just clickable here, each row opens its sealed Record. */
+.hist-filters { display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) 0; flex-shrink: 0; flex-wrap: wrap; }
+.hist-filters select, .hist-filters input { height: 32px; padding: 0 var(--sp-2); border: 1px solid var(--line);
+  border-radius: var(--r-2); background: var(--panel); color: var(--text-1); font-size: var(--fs-body); }
+.hist-filters select:focus, .hist-filters input:focus { outline: none; border-color: var(--cyan); }
+.hist-search { flex: 1 1 160px; min-width: 120px; }
+.hist-row { cursor: pointer; }
+.hist-row:hover { background: var(--panel-3); }
+.hist-count { font-size: var(--fs-micro); color: var(--text-3); margin-right: auto; align-self: center; }
 
 .modal-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line); flex-shrink: 0; }

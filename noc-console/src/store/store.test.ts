@@ -386,3 +386,43 @@ describe('shift report (v2 Part 7)', () => {
     expect(store.getState().ui.shiftReportOpen).toBe(false)
   })
 })
+
+describe('Record and History (v2 Part 9)', () => {
+  it('closing an incident seals a Record carrying the operator, and History can re-open it later', async () => {
+    const store = await boot()
+    await store.openIncident('a1')
+    const id = server(store).incidents[0]!.id
+    store.openCloseout(id)
+    await store.submitCloseout('Closing memo for the Part 9 record/history test.', [])
+
+    const summary = server(store).closedThisShift[0]!
+    expect(summary.operator).toEqual(server(store).shift.operator)
+
+    // Opened automatically right after close.
+    expect(store.getState().ui.record?.incident.id).toBe(id)
+    expect(store.getState().ui.record?.transcript.length).toBeGreaterThan(0)
+    store.closeRecord()
+    expect(store.getState().ui.record).toBeNull()
+
+    // History re-opens the same sealed data by incidentId, not a rebuild.
+    await store.openRecord(id)
+    expect(store.getState().ui.record?.incident.id).toBe(id)
+    expect(store.getState().ui.record?.operator).toEqual(server(store).shift.operator)
+  })
+
+  it('openRecord on an incident that was never closed toasts a warning instead', async () => {
+    const store = await boot()
+    await store.openRecord('never-closed')
+    expect(store.getState().ui.record).toBeNull()
+    expect(store.getState().ui.toast?.kind).toBe('warn')
+  })
+
+  it('setHistoryOpen toggles the modal', async () => {
+    const store = await boot()
+    expect(store.getState().ui.historyOpen).toBe(false)
+    store.setHistoryOpen(true)
+    expect(store.getState().ui.historyOpen).toBe(true)
+    store.setHistoryOpen(false)
+    expect(store.getState().ui.historyOpen).toBe(false)
+  })
+})

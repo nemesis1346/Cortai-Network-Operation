@@ -68,6 +68,9 @@ export class MockNocClient implements NocClient {
   private snap: Snapshot
   private closedAttended = 0
   private closedUnattended = 0
+  /** Sealed at close, keyed by incidentId (Part 9) — History re-opens from
+   * here rather than rebuilding, since the live `Incident` is gone by then. */
+  private records = new Map<string, IncidentReport>()
 
   /* ---------- auth (Part 8) ---------- */
   private authByEmail = new Map<string, EmailAuthState>()
@@ -375,6 +378,7 @@ export class MockNocClient implements NocClient {
     this.snap.stats.closedUnattendedSec = this.closedUnattended
 
     const report = this.buildReport(inc)
+    this.records.set(inc.id, report)
     this.transcript('sys', `Incident closed · ${this.siteName(inc)} · closed with memo`, inc.id)
 
     const alert = this.snap.alerts.find((a) => a.id === inc.alertId)
@@ -399,6 +403,11 @@ export class MockNocClient implements NocClient {
       if (first) await this.setFocus(first.id)
     }
     return ok(report)
+  }
+
+  async getRecord(incidentId: string): Promise<Result<IncidentReport>> {
+    const r = this.records.get(incidentId)
+    return r ? ok(r) : fail('NOT_FOUND', 'Record not found')
   }
 
   async acknowledgePage(desk: number): Promise<Result<null>> {
