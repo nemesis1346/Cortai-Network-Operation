@@ -19,7 +19,7 @@ the center exists.
 | 6 | **Named ladder + closeout fit** — Talk-down/Siren/Keyholder/Dispatch stage names; Dispatch requires explicit confirm, shown dimmed for P3/P4; closeout adapted to the new layout. | stage names in `domain/constants.ts`; `CloseoutModal.tsx` positioning | Part 1 | **Done**, 14 Oct — Halt/Resume landed in Part 1, ahead of schedule |
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
 | 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **Done**, 6 Nov. |
-| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **2/3 done**, 10 Nov — Record + History built; `incident-records` help article still needs routing + the content edit Part 8 did for its own screens. |
+| 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Done**, 10 Nov. |
 | 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
 
 ### Part 7 sub-parts
@@ -851,3 +851,50 @@ History list (3), `RecordModal` replacing `ReportModal` (4), retention confirmed
 Not done yet: the `incident-records` help article still describes the old All/P1–P2/Referred filter,
 SHA-256 hashing, a "viewed by" log and Export PDF — same gap Part 8 closed out for its own 4 articles,
 left open here per README's own "still open" note until this point was actually built. Next commit.
+
+## Part 9 notes (3/3 — incident-records help article + F1 routing)
+
+Completes Part 9. `helpContext()` (`domain/help.ts`) gained a `historyOpen` input, same tier as
+`shiftReportOpen`/`settingsOpen` — checked ahead of `closingIncidentId` and everything below it, not a
+blocking flow (F1 still works with History open; it's `ui.record` that blocks F1 entirely, same as
+`closingIncidentId` and `micConfirm` — `useHotkeys.ts` already refused to even open Help over a Record
+before this part existed). Routes to `incident-records`.
+
+`help.json`'s `incident-records` article got a real content edit, not just a routing hookup — same
+treatment Part 8 gave `sign-in`/`sign-in-problems`/`lock-screen`. The old body was Oleg's v1 design, not
+this build: a left-panel History tab with a `/` shortcut (this build's entry points are the TopBar button
+and the command palette); an All/P1–P2/Referred segmented filter (this build's are Yassine's own
+date/site/priority/operator, per the decision note); "stills and clip hashed (SHA-256)... exports keep
+the hash" and a video clip (no hash, no clip — nothing real to hash against, decision note #1); hour-
+grouping and "search reaches back seven days" (flat, newest-first, this-shift-only, decision note's scope
+paragraph); "who has viewed the record" (no such log, single operator); Export PDF and "a supervisor can
+add an addendum" (both explicitly out of scope). Rewrote the body and trimmed the keyword list
+accordingly (dropped `pdf`/`audit`/`/`, added `filters`/`date`/`site`/`priority`/`operator` — the terms
+an operator would actually search this on now).
+
+Checked both figures (`history-list.webp`, `incident-record.webp`) before deciding, same as Part 8: both
+show the old design closely enough to actively mislead rather than just read as stale chrome — visible
+"All 4 / P1–P2 2 / Referred 1" filter chips and outcome badges in one, a visible "Export PDF" button and
+the SHA-256 hash line in the other. Both `{{fig:...}}` references dropped from the body; the `figures`
+dict entries and image files left in place, unreferenced, same reasoning as Part 8 (nothing to gain from
+deleting them, and they're a ready slot if real screenshots of the new screens ever get taken).
+
+One bug caught live, not from a test: with `historyOpen` newly routable, F1 now opens Help *while History
+is open* — a state that never existed before this part. `HistoryModal`'s own Escape handler already
+guarded against stealing Escape from a Record stacked on top of it (Part 9, 2/3); it didn't guard against
+Help doing the same thing, so a single Escape press with both open closed both History and Help in the
+same tick. Fixed the same way as the Record case: the guard now also checks `ui.helpOpen`. (This is the
+same *mechanism* `ShiftReportModal`/`SettingsModal` already have — independent `window` keydown listeners
+with no cross-modal awareness — but those two never got an equivalent bug report because nothing
+previously made "browse History with Help open on top" a reachable state; not fixing them here, since
+neither is part of this build-plan point and neither regressed.)
+
+Verified live (Playwright): F1 while History is open opens "History and incident records", not the old
+body (no "P1–P2" text anywhere in it); searching "date site priority operator" surfaces it as the top
+hit with the new filter sentence visible in the snippet; Escape closes Help first, leaving History open
+underneath — the fix above, confirmed working. No console errors beyond the same unrelated favicon 404.
+
+Typecheck clean, 74/74 tests passing (1 new: `helpContext`'s `historyOpen` routes to `incident-records`
+at the same priority tier as `settingsOpen`, and loses to it when both are true).
+
+**Part 9 is now fully done** — all 5 points of the 9 Nov decision note are built and verified live.

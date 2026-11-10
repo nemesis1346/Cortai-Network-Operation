@@ -147,6 +147,7 @@ export function helpContext(ctx: {
   wallOpen: boolean
   shiftReportOpen: boolean
   settingsOpen: boolean
+  historyOpen: boolean
   closingIncidentId: string | null
   shortcutsOpen: boolean
   paletteOpen: boolean
@@ -161,6 +162,7 @@ export function helpContext(ctx: {
   if (ctx.wallOpen) return 'camera-wall'
   if (ctx.shiftReportOpen) return 'shift-report'
   if (ctx.settingsOpen) return 'settings'
+  if (ctx.historyOpen) return 'incident-records'
   if (ctx.closingIncidentId) return 'close-incident'
   if (ctx.shortcutsOpen) return 'keyboard-shortcuts'
   if (ctx.paletteOpen) return 'command-palette'

@@ -593,3 +593,31 @@ re-opens the identical cached data rather than rebuilding it; `openRecord` on a 
 toasts instead of touching `ui.record`; `setHistoryOpen` toggles the flag).
 
 Not done yet: the `incident-records` help article (same treatment Part 8 gave its 4 articles) — next.
+
+**10 Nov — v2 Part 9 (3/3), incident-records help article + F1 routing — Part 9 complete:**
+- `src/domain/help.ts`: `helpContext()` gained `historyOpen`, same tier as `shiftReportOpen`/
+  `settingsOpen` (not a blocking flow — `ui.record` already blocks F1 outright, same as
+  `closingIncidentId`/`micConfirm`). Routes to `incident-records`.
+- `src/components/HelpModal.tsx`: passes `ui.historyOpen` through.
+- `public/help/help.json`: `incident-records` rewritten to match this build — TopBar/command-palette
+  entry points (not a left-panel tab + `/`); Yassine's own date/site/priority/operator filters (not
+  All/P1–P2/Referred); no SHA-256 hash or video clip (nothing real to hash or play); flat newest-first
+  list scoped to this shift only (not hour-grouped with a 7-day search reach); no "viewed by" log; no
+  Export PDF; no supervisor addendum. Both figure references dropped after visual inspection — both
+  screenshots show the old design closely enough to actively mislead (filter chips reading "All 4 /
+  P1–P2 2 / Referred 1", a visible Export PDF button and the SHA-256 hash line), not just stale chrome.
+  Kept the image files and `figures` dict entries in place, same as Part 8.
+- `src/components/HistoryModal.tsx`: the Escape-stacking guard from the previous commit (don't steal
+  Escape from a Record on top) now also checks `ui.helpOpen` — F1 routing to `incident-records` made
+  "Help open on top of History" newly reachable, and a single Escape press was closing both at once
+  before this fix. Same bug class as the Record case, caught live rather than by a failing test.
+
+Verified live: F1 with History open opens the rewritten article (no "P1–P2" text anywhere in the
+rendered body); searching the new filter terms surfaces it as the top hit; Escape closes Help first,
+History stays open underneath. No console errors beyond the same unrelated favicon 404.
+
+Typecheck clean, 74/74 tests passing (1 new: `historyOpen` routes to `incident-records`, loses to
+`settingsOpen` when both are true, same priority-order pattern every other `helpContext` case already
+tests).
+
+**Part 9 is complete** — all 5 points of the 9 Nov decision note are built.

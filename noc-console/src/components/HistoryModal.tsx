@@ -38,9 +38,11 @@ export function HistoryModal() {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      // Don't steal Escape from a Record opened on top of this list — that
-      // closes first; a second press then closes History.
-      if (e.key === 'Escape' && !store.getState().ui.record) store.setHistoryOpen(false)
+      // Don't steal Escape from a Record or Help opened on top of this list
+      // (F1 routes to incident-records while History is open) — whichever's
+      // on top closes first; a second press then closes History.
+      const top = store.getState().ui
+      if (e.key === 'Escape' && !top.record && !top.helpOpen) store.setHistoryOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

@@ -157,6 +157,7 @@ export function HelpModal() {
           wallOpen: ui.wallOpen,
           shiftReportOpen: ui.shiftReportOpen,
           settingsOpen: ui.settingsOpen,
+          historyOpen: ui.historyOpen,
           closingIncidentId: ui.closingIncidentId,
           shortcutsOpen: ui.shortcutsOpen,
           paletteOpen: ui.paletteOpen,

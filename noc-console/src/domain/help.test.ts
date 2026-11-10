@@ -47,8 +47,9 @@ describe('searchHelp', () => {
 describe('helpContext', () => {
   const base = {
     signedOut: false, locked: false, wallOpen: false, shiftReportOpen: false, settingsOpen: false,
-    closingIncidentId: null, shortcutsOpen: false, paletteOpen: false, connectionOffline: false,
-    queueRefusal: null, viewingCameraId: null, hasEscalation: false, hasOpenLanes: false,
+    historyOpen: false, closingIncidentId: null, shortcutsOpen: false, paletteOpen: false,
+    connectionOffline: false, queueRefusal: null, viewingCameraId: null, hasEscalation: false,
+    hasOpenLanes: false,
   }
   it('falls back to console-overview with nothing open', () => {
     expect(helpContext(base)).toBe('console-overview')
@@ -72,5 +73,9 @@ describe('helpContext', () => {
   it('connection-lost beats the queue/camera/escalation banners but not a modal', () => {
     expect(helpContext({ ...base, connectionOffline: true, hasEscalation: true })).toBe('connection-lost')
     expect(helpContext({ ...base, connectionOffline: true, settingsOpen: true })).toBe('settings')
+  })
+  it('History routes to incident-records, same tier as Shift report / Settings', () => {
+    expect(helpContext({ ...base, historyOpen: true, hasEscalation: true })).toBe('incident-records')
+    expect(helpContext({ ...base, historyOpen: true, settingsOpen: true })).toBe('settings')
   })
 })

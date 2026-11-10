@@ -181,8 +181,9 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   build didn't have yet (sign-in, lock, connection-lost, History) or a "T" take-next key this build never
   bound; `helpContext()` (STATES.md §10's priority order) simply never routed to the former. Sign-in,
   lock and connection-lost got real edits once Part 8 built those screens (see this file's own Part 8
-  note below); History (Part 9) and the unbound T key are still open, flagged in `docs/V2-BUILD-PLAN.md`'s
-  Part 7 notes and `docs/DECISIONS.md` respectively rather than silently rewritten. The 4
+  note below); `incident-records` got the same treatment once Part 9 built History (see its Part 9
+  notes). The unbound T key is still open on purpose — `docs/DECISIONS.md` records it as a deliberate
+  no-op, not an oversight. The 4
   diagrams' inline SVGs use a third CSS-variable naming scheme (`--c-*`, distinct from both this
   project's tokens and Oleg's Settings-era `--color-*` ones) — aliased on `.help-diagram` rather than
   rewriting real SVG markup, same reasoning as not rewriting the article text.
