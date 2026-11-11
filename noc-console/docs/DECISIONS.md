@@ -12,7 +12,7 @@ built — usually because it needs something from Yassine first, like the Lionst
 | # | Decision | Status |
 |---|---|---|
 | Queue sort | Oleg's hybrid: P1–P4 primary (derived from severity × inside-the-line, never hand-set), then watch index, then age. | **Done** — `domain/rules.ts#derivePriority`, `docs/API-CONTRACT.md` §1a |
-| Auth | OTP stays. Keep Oleg's card, desk selector, error states, lock screen; swap the password step for OTP. Yassine sending the Lionston flow. | **Documented** — `docs/API-CONTRACT.md` §12. Blocked on the Lionston flow arriving; nothing to build until then. |
+| Auth | OTP stays. Keep Oleg's card, desk selector, error states, lock screen; swap the password step for OTP. Yassine sending the Lionston flow. | **Done** — built as Part 8 (6 Nov), once Yassine's 3 Nov message unblocked it; see the Part 8 decisions table below. `docs/API-CONTRACT.md` §12 is superseded by that point, not blocked anymore. |
 
 ## Product decisions (`OPEN-QUESTIONS.md` #3–8)
 

@@ -20,7 +20,7 @@ the center exists.
 | 7 | **New-in-v2 screens** — History (sealed records), Shift report, camera view without an incident, Settings, Help (F1), sign-in/lock/connection-lost, command palette (⌘K). Purely additive, nothing existing to replace. | — | Parts 1–6 for cross-links (e.g. History reachable from a closed lane) | 5 of 7 sub-parts shipped, 20 Oct; the last 2 split out as Parts 8–9 below once Yassine unblocked them, 3 Nov |
 | 8 | **Sign-in, lock screen, connection lost** — email-code (OTP) sign-in replacing the password step, desk selector, error states, idle lock, connection-lost banner with reconnect. | — (new, nothing in phase 1 gated sign-in) | — | **Done**, 6 Nov. |
 | 9 | **Record and History** — sealed Record (report content + next-steps queue, ledger, transcript, evidence), immutable after close; History list (columns, filters, sort, empty state); replaces `ReportModal`. | `ReportModal` (Modal O5) | Part 8 not required, but ordered after it per Yassine's list | **Done**, 10 Nov. |
-| 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Not started** — no longer blocked on the Figma call (Yassine, 3 Nov), since the Lane Workspace it was waiting on is built and approved. |
+| 10 | **Backend contract** — `LaneState` transition table, take-next/raise-incident request/response + emitted events, full `ServerEvent` list for the real socket. Docs only, no code. | — | Clearest once Parts 8–9's events exist | **Done**, 10 Nov — `docs/API-CONTRACT.md` §15–§17. |
 
 ### Part 7 sub-parts
 
@@ -898,3 +898,44 @@ Typecheck clean, 74/74 tests passing (1 new: `helpContext`'s `historyOpen` route
 at the same priority tier as `settingsOpen`, and loses to it when both are true).
 
 **Part 9 is now fully done** — all 5 points of the 9 Nov decision note are built and verified live.
+
+## Part 10 notes (backend contract — docs only, no code)
+
+Full reasoning lives in `docs/API-CONTRACT.md` §15–§17 (new) and its corrections to §2–§4/§12 (existing
+sections, not renumbered — §13's own `DECISIONS.md`/code cross-references and `docs/DECISIONS.md`'s own
+`§12` reference meant nothing already-numbered could move). Summary for this log:
+
+- **`LaneState`** (§15): the old proposal (`free`/`focused`/`peripheral`/`escalated`/`closing`/
+  `handoff-requested`/`closed`) predates Parts 1–9, which is what this pass checked it against instead
+  of re-reading the spec. Real model: `free`/`focused`/`peripheral`/`closed`, with escalation as an
+  attribute of `peripheral` (not a competing state — `unattendedSince`/`focusedSince` are mutually
+  exclusive by construction, so a focused lane can't be escalated), `closing` as purely client-local
+  (never server-tracked — the server only ever sees one atomic close call), and `handoff-requested` not
+  existing at all (needs a second operator identity, which this single-operator build doesn't have —
+  `DECISIONS.md` #6). Found one real loose end while grounding this in the actual code, flagged not
+  fixed: `AlertState.closed` is typed but never assigned — closing an incident sets its alert back to
+  `'held'`, not `'closed'`.
+- **Take next / Raise incident** (§16): "take next" isn't a command — there's no server concept of
+  "next," the operator clicks a specific queue row, already `openIncident(alertId)`. `raiseIncident`
+  (built Part 7) gets its request/response shape written down for the first time, including the
+  severity/insidePropertyLine mapping that makes a hand-picked P1–P4 round-trip correctly through
+  `derivePriority` — P4's mapping (severity 3, outside the line) is the one non-obvious row, since
+  severity itself only goes to 3.
+- **`ServerEvent` list** (§17): the existing 14-event union, unchanged since phase 1, is confirmed
+  sufficient through Part 9. All 5 of §4's "anticipated" additions resolve to "not needed," each for a
+  specific reason (escalation is client-computed from a timestamp already on `Incident`; video-signal
+  folds into `camera.updated`; a connection-lost event is a contradiction — a dead socket can't push an
+  event about itself; session changes are request/response in this build, nothing listens for them).
+
+Also corrected real drift found while this section was open anyway: §3's "anticipated" command list
+named 4 commands as unbuilt; 3 were already shipped in Parts 2/6/7 (`acknowledgeEscalation`,
+`confirmDispatch`, `raiseIncident`) and never got moved into the main table — only hand-off is genuinely
+still open. `resumeLadder` (Part 1) was missing from the table entirely. §2's REST sketch gained the 5
+endpoints those need. `docs/DECISIONS.md`'s Auth row was still marked "Documented… Blocked" — corrected
+to "Done" (it shipped as Part 8, 6 Nov; the row just never got updated when that landed).
+
+No code changed, so no typecheck/test/live-verification section — this point's own definition of done is
+the three written artifacts `V2-BUILD-PLAN.md`'s Part 10 row names, all grounded in what Parts 1–9
+actually built rather than re-asserting the pre-build `STATES.md` proposal.
+
+**Part 10 is done.** Every part of the original v2 build plan (1 through 10) is now complete.

@@ -47,15 +47,24 @@ nothing in the store or components needs to change.
 GET  /api/snapshot                 -> Snapshot   (NocClient.getSnapshot)
 WS   /api/events                   -> ServerEvent stream (NocClient.subscribe)
 POST /api/incidents                -> open an incident from an alert
+POST /api/incidents/raise          -> raise without an alert (v2 Part 10, see §16)
 POST /api/incidents/:id/close      -> close
 POST /api/incidents/:id/focus      -> (see note below — focus is desk-local, see §3)
 POST /api/incidents/:id/mic        -> bind/release the mic
 POST /api/incidents/:id/ladder/halt
+POST /api/incidents/:id/ladder/resume
+POST /api/incidents/:id/escalation/ack  -> K, v2 Part 10
+POST /api/incidents/:id/dispatch        -> confirm dispatch, v2 Part 10
 POST /api/incidents/:id/siren
 POST /api/incidents/:id/strobe
 POST /api/incidents/:id/notes
 POST /api/pages/:desk/ack
 ```
+
+Not sketched above, built in Parts 8–9 but out of scope for this reconciliation pass (Part 10 is
+`LaneState`/take-next/raise-incident/`ServerEvent` only, per `V2-BUILD-PLAN.md`): the 5 auth endpoints
+(`requestCode`/`verifyCode`/`selectDesk`/`lock`/`signOut`) and `getRecord`. Flagging the gap rather than
+silently leaving it unmentioned — a future pass over this section should fold those in too.
 
 ## 3. Commands: existing vs. anticipated
 
@@ -66,19 +75,24 @@ POST /api/pages/:desk/ack
 | `setFocus` | — | **Desk-local, not a server command.** Focus is "what this operator is looking at right now," not shared state. Keep it client-side (as the store already does) rather than round-tripping it; only the *ledger event* it produces ("Operator entered lane") needs to reach the server. |
 | `bindMic` | `POST /incidents/:id/mic` | `{ incidentId: string \| null, force?: boolean }` |
 | `haltLadder` | `POST /incidents/:id/ladder/halt` | |
+| `resumeLadder` | `POST /incidents/:id/ladder/resume` | Resumes from where it paused (elapsed-at-halt preserved), not from 0 — also missing from this table until Part 10 caught it. |
 | `setSiren` / `setStrobe` | `POST /incidents/:id/siren` / `/strobe` | `{ on: boolean }` |
 | `addNote` | `POST /incidents/:id/notes` | `{ text: string }` |
 | `acknowledgePage` | `POST /pages/:desk/ack` | |
+| `acknowledgeEscalation` | `POST /incidents/:id/escalation/ack` | K. Refused (`INVALID_STATE`) on a focused lane — nothing to acknowledge while attended. |
+| `confirmDispatch` | `POST /incidents/:id/dispatch` | Stage 4, operator-confirmed only, never automatic. |
+| `raiseIncident` | `POST /incidents/raise` | `{ cameraId: string, priority: 'P1'\|'P2'\|'P3'\|'P4' }`. Shape: §16. |
 
-Anticipated, not in `NocClient` yet — v2's `STATES.md` §1 implies these regardless of which interaction
-model ships, but their request/response shape depends on the queue-formula and lane-model decisions,
-so they're named here and not typed yet:
+~~Anticipated, not in `NocClient` yet~~ — **stale, v2 Part 10 (10 Nov): 3 of these 4 are already built**,
+landed piecemeal across Parts 2/6/7 while this list sat unedited. Corrected:
 
-- **Take next** / **Raise incident** (manual P1–P4 raise from a camera with no alert) — `STATES.md` §1.
-- **Acknowledge escalation** (K) — distinct from `haltLadder`; acknowledges without stopping the ladder.
-- **Hand off** / **accept hand-off** — two-sided, needs a supervisor-facing endpoint too.
-- **Confirm dispatch** — `STATES.md` §3, stage 4 is never automatic; this is a dedicated confirm step,
-  not folded into ladder progression.
+| | Status |
+|---|---|
+| **Raise incident** (manual P1–P4 raise from a camera with no alert) | **Built**, Part 7 — `NocClient.raiseIncident(cameraId, priority)`. Shape and endpoint: §16. |
+| **Take next** | **Resolved, not a separate command** — see §16. There's no "next" on the server; the operator clicks whichever queue row they want, which is already `openIncident(alertId)`, already in the table above. |
+| **Acknowledge escalation** (K) | **Built**, Part 2 — `NocClient.acknowledgeEscalation(incidentId)` → `POST /api/incidents/:id/escalation/ack`. Sets `escalationAcked`, emits the existing `incident.upsert` (no new event type). |
+| **Confirm dispatch** | **Built**, Part 6 — `NocClient.confirmDispatch(incidentId)` → `POST /api/incidents/:id/dispatch`. Ladder stage 4, operator-confirmed only, never automatic (fires `firedStage = 3`, `status: 'complete'`), emits `ladder.updated`. Available even on a suppressed ladder — that only stops the automated stages, not an explicit operator call. |
+| **Hand off** / **accept hand-off** | **Still genuinely open** — the one real gap. Needs a supervisor-facing endpoint and a second operator identity to hand off *to*, neither of which exist (`DECISIONS.md` #6: single operator role, no role system until integration). Not the same thing as the already-built mic hand-off between a desk's own lanes (`bindMic`/`MicConfirmDialog`) — that's one operator moving their own attention, this would be operator-to-operator. |
 
 ## 4. Events: existing vs. anticipated
 
@@ -100,6 +114,24 @@ Anticipated additions, mapped from `STATES.md`:
 `camera.updated` could absorb `video.signal.changed` instead of a new event type, since `Camera` already
 carries `signal`/`latencyMs` as of today's change (§7) — worth deciding when the video contract is
 finalized rather than shipping two events for one fact.
+
+**Resolved, v2 Part 10 (10 Nov): none of the 5 anticipated additions above are needed.** Each one looked
+plausible from `STATES.md` alone; checking what Parts 1–9 actually built instead of what was anticipated
+changed the answer for all five — full reasoning in §17. Short version: `lane.escalated`/
+`lane.acknowledged` are redundant with the existing `incident.upsert` (escalation tier is computed
+client-side every tick from `unattendedSince`/`escalationAcked`, both already on `Incident` and already
+reaching the client via the event that's always fired when either changes — Part 2's own design, not
+something Part 10 added); `video.signal.changed` is resolved in `camera.updated`'s favor, settling the
+"worth deciding" note directly above — one fact, one event, no dual-sourcing to keep in sync;
+`connection.changed` doesn't fit the event model at all, since a dead connection can't push an event
+about itself — a real client detects this from the transport (WebSocket `close`/heartbeat timeout), not
+a payload (§10 already says this is needed "from backend," it just didn't yet connect that to why no
+event type works for it); `session.changed` turned out unnecessary once Part 8 built auth as pure
+request/response (`requestCode`/`verifyCode`/`selectDesk`/`lock`/`signOut`, each returning its own
+result) — nothing elsewhere needs to learn about a session change it didn't itself cause, since this
+build has no multi-device-same-operator awareness to keep in sync. The existing 14-event union needs no
+additions for anything built through Part 9. See §17 for the full "why" per event and how this was
+checked, not just asserted.
 
 ## 5. Error codes
 
@@ -208,12 +240,15 @@ Typecheck clean, 20/20 tests passing throughout.
 
 ## 12. Explicitly not started
 
-Auth model (OTP flow still to arrive from Yassine), the `LaneState` machine (`free`/`focused`/
+~~Auth model (OTP flow still to arrive from Yassine), the `LaneState` machine (`free`/`focused`/
 `peripheral`/`escalated`/`closing`/`handoff-requested`/`closed`), and take-next/raise-incident command
-shapes. Blocked on the Lane Workspace / camera-wall Figma call, not on anything in this document. (The
-wall staying open during an incident shipped in Part 4 ahead of that call, per `DECISIONS.md`'s 5 Oct
-note — flagged there as carrying build risk until Marco confirms it with Oleg.) See `DECISIONS.md` for
-the full status of every item from the sign-off memo.
+shapes. Blocked on the Lane Workspace / camera-wall Figma call, not on anything in this document.~~
+**Resolved**: the Figma call isn't happening (`DECISIONS.md`'s 5 Oct note) and Yassine unblocked
+everything explicitly on 3 Nov. Auth built as Part 8 (6 Nov) — see `DECISIONS.md`'s Part 8 decisions
+table and `V2-BUILD-PLAN.md`'s Part 8 notes. `LaneState` and take-next/raise-incident are resolved as
+v2 Part 10 (10 Nov, this document) — §15–§17 below. The proposed `'escalated'`/`'closing'`/
+`'handoff-requested'` values turned out not to match what actually got built; §15 explains why for each.
+See `DECISIONS.md` for the full status of every item from the sign-off memo.
 
 ## 13. Camera status: Fault vs. Offline (resolved, v2 Part 4)
 
@@ -621,3 +656,170 @@ Typecheck clean, 74/74 tests passing (1 new: `historyOpen` routes to `incident-r
 tests).
 
 **Part 9 is complete** — all 5 points of the 9 Nov decision note are built.
+
+## 15. `LaneState` — the real transition model (v2 Part 10)
+
+§12's old proposal (`free`/`focused`/`peripheral`/`escalated`/`closing`/`handoff-requested`/`closed`) was
+written against `STATES.md` alone, before the interaction model existed to check it against. Parts 1–9
+are built now, so this is grounded in what the code actually does (`Incident`/`LadderState` in
+`types.ts`, `MockNocClient`'s `openIncident`/`setFocus`/`closeIncident`), not a re-read of the spec.
+
+**There is no single `LaneState` field anywhere in the code.** A lane's state is a derived read of
+`Incident` + whether it's in `Snapshot.incidents` at all — the same way the UI itself treats it (no
+component switches on a `state` string; they each read the specific fields they need). The useful
+`LaneState` for a real backend's own bookkeeping is narrower than the old proposal:
+
+| State | Meaning | Entered by |
+|---|---|---|
+| `free` | No incident in this lane slot (0–3 lanes can be `free` at once, `MAX_LANES = 3`) | Initial; or `closed` (below) |
+| `focused` | Incident open, `Snapshot.focusIncidentId === id` | `openIncident`/`raiseIncident` when no lane is currently focused; or `setFocus(id)` from `peripheral` |
+| `peripheral` | Incident open, not focused | `openIncident`/`raiseIncident` when another lane already holds focus; or `setFocus` moving focus away (to another lane, or to `null` for camera view) |
+| `closed` | Removed from `Snapshot.incidents`, sealed into `ClosedIncidentSummary`/`Record` (Part 9) | `closeIncident`, unconditionally |
+
+Transitions: `free →[open/raise]→ focused` (first/only open lane) or `free →[open/raise]→ peripheral`
+(a lane's already focused); `peripheral ⇄[setFocus]⇄ focused` (A/B/C, a lane-card click, mic-confirm
+moving focus); `focused|peripheral →[close]→ closed →[implicitly]→ free` (closing always frees the lane
+slot — nothing else can reopen it, `closeIncident` doesn't recycle `laneIndex`, the next `openIncident`
+picks whichever index is unused). `closed` has no further transitions — Part 9's "fully immutable" already
+covers that.
+
+**Why the other three proposed values don't appear:**
+
+- **`'escalated'`** isn't a competing state, it's an *attribute of `peripheral`* — `attentionLevel`/
+  `escalationTier` (`domain/rules.ts`) are pure functions of `now - unattendedSince`, and
+  `unattendedSince` is `null` *by construction* while `focusedSince` is set (`setFocus` clears one and
+  sets the other, atomically, every time). A focused lane literally cannot be escalated — not a rule
+  enforced by a guard, a consequence of the two fields being mutually exclusive. Thresholds, for
+  reference: notice 30s / warning 45s / alarm 60s (`UNATTENDED_NOTICE_SEC`/`_WARNING_SEC`/`_ALARM_SEC`,
+  `domain/constants.ts`) — `watching` below notice, `unattended` between notice and warning, `escalating`
+  at warning+ (`attentionLevel`); the `EscalationBar`'s own `none`/`warning`/`critical` is the same clock
+  read at a different cut (`escalationTier`). `escalationAcked` (K) doesn't change the tier or stop the
+  clock, only quiets the banner for the current streak — a fresh unattended streak (next time the lane
+  loses focus) needs acking again, it doesn't carry over (`setFocus`'s own comment: "last streak's ack
+  doesn't carry over").
+- **`'closing'`** isn't server-tracked at all. `CloseoutModal` being open is pure client-local UI state
+  (`ui.closingIncidentId`) — the server never sees an intermediate "closing" state, only the one atomic
+  `closeIncident` call once the operator submits. A real backend needs no state for this; if the operator
+  abandons the closeout dialog, nothing happened server-side to undo.
+- **`'handoff-requested'`** doesn't exist and can't yet — it would need a second operator identity to
+  hand off *to*. This build has exactly one operator role and no multi-operator awareness (`DECISIONS.md`
+  #6, deferred to integration). Not to be confused with the already-built mic hand-off (`bindMic`,
+  `MicConfirmDialog`) — that's one operator moving their own mic between their own lanes, a `focused`/
+  `peripheral` transition under a different name, not an operator-to-operator concept.
+
+**A loose end found while checking this, not fixed here (docs only, per this point's scope):**
+`AlertState` (`'new'|'working'|'held'|'closed'`) has a `'closed'` value that's never actually assigned —
+`closeIncident` sets the alert back to `'held'`, not `'closed'` (`MockNocClient.closeIncident`), and
+`Queue.tsx`'s own tabs are typed `Exclude<AlertState, 'closed'>`, deliberately excluding it. So a closed
+incident's alert is indistinguishable, at the `Alert` level, from one that was simply parked and never
+actioned — the only place "this was actually handled and closed" lives is `ClosedIncidentSummary`/
+`Record` (Part 9). Worth a product call (is "closed" worth its own Held-tab-adjacent bucket, or is
+folding it into Held intentional — "handled" things shouldn't linger in an operator's queue view either
+way?) before a real backend decides whether to ever assign `'closed'` for real.
+
+## 16. Take next / Raise incident — command shapes (v2 Part 10)
+
+**Take next resolves to no new command.** There's no server-side "give me the next alert" endpoint,
+because there's no server-side concept of "next" to give — the queue's sort order (§1a) is a client-side
+read of already-synced data, and the operator picks a specific row to click. That's `openIncident(alertId)`,
+already in §3's table. A backend implementer reading "take next" in the brief should build nothing new for
+it; the queue sort formula (§1a) *is* the feature, `openIncident` is the only command it needs.
+
+**Raise incident** (`NocClient.raiseIncident`, built Part 7 for `CameraWorkspace` — a camera with no AI
+alert behind it) is a real command, already typed, newly added to §2/§3's tables above:
+
+```
+POST /api/incidents/raise
+{ "cameraId": "c07", "priority": "P1" | "P2" | "P3" | "P4" }
+-> Incident   (same shape openIncident resolves to)
+```
+
+The server has no raw `priority` field anywhere (`derivePriority` computes it, always, from
+`severity`/`insidePropertyLine` — §1a) — raising manually has to pick a `(severity, insidePropertyLine)`
+pair that round-trips back through `derivePriority` to exactly the tier the operator chose, not a second,
+parallel priority representation. `MockNocClient.raiseIncident`'s mapping, reproduced here because it's
+the one genuinely non-obvious part of this command:
+
+| Chosen priority | `severity` | `insidePropertyLine` | Check: `derivePriority(severity, insidePropertyLine)` |
+|---|---|---|---|
+| P1 | 1 | `true` | 1 + 0 = **P1** |
+| P2 | 2 | `true` | 2 + 0 = **P2** |
+| P3 | 3 | `true` | 3 + 0 = **P3** |
+| P4 | 3 | `false` | 3 + 1, floored at 4 = **P4** |
+
+P4 is the one non-obvious row: `severity` tops out at 3 (the AI's raw classification only ever has 3
+tiers), so P4 is only reachable by pairing the highest severity with "outside the line," never by a 4th
+severity value that doesn't exist. A synthetic `Alert` is created first (`riskFactors: [{ label:
+'Raised by operator, no AI alert', weight: 'high' }]`, `confidence: null` — there's no AI confidence to
+report), then the existing open flow runs unchanged: lane-limit check, lane assignment, auto-focus if
+nothing else is focused, ledger/transcript seeding — all of it already correct for a normal alert-driven
+open, reused rather than duplicated. Emits `alert.upsert` for the synthetic alert, then whatever
+`openIncident` itself already emits (`incident.upsert`, possibly `focus.changed`) — no new event type.
+
+## 17. `ServerEvent` list for the real socket — confirmed complete through Part 9 (v2 Part 10)
+
+The full list, unchanged since phase 1, is still the whole list a real WebSocket needs to emit:
+
+```
+alert.upsert · incident.upsert · incident.closed · ladder.updated · ledger.added · evidence.added
+transcript.added · camera.updated · watch.updated · focus.changed · mic.changed · speaker.changed
+desk.paged · desk.page.acknowledged
+```
+
+§4 flagged 5 candidate additions as "anticipated" without building anything to check them against. Now
+that there's a real implementation to check, each one resolves to "not needed," for a specific reason —
+the point of this section is to show the check, not just assert the conclusion:
+
+1. **`lane.escalated`** — escalation tier (`watching`/`unattended`/`escalating`, or the `EscalationBar`'s
+   `none`/`warning`/`critical`) is a pure function of elapsed time since `unattendedSince`, computed
+   fresh on the client every render tick (`attentionLevel`/`escalationTier`, `domain/rules.ts`). The
+   server doesn't need to tell the client when a threshold crosses — the client already has the one
+   timestamp it needs, from the `incident.upsert` that already fires whenever `unattendedSince` changes
+   (every focus change, by construction — §15). A dedicated event would just be the server doing the
+   client's own arithmetic redundantly, and would need to be perfectly re-derivable from the same
+   timestamp anyway or the two could disagree.
+2. **`lane.acknowledged`** — `acknowledgeEscalation` already emits `incident.upsert` with the updated
+   `escalationAcked` (confirmed in §3's table above, Part 10's own correction of that section). A second,
+   parallel event for the same field change has no reader that `incident.upsert` doesn't already serve.
+3. **`video.signal.changed`** — resolved in `camera.updated`'s favor, the option §4 already named but
+   left as "worth deciding." `Camera.signal`/`latencyMs` are plain fields on `Camera` (§7); nothing
+   about them needs a separate event stream from the rest of `Camera`'s own updates.
+4. **`connection.changed`** — doesn't fit the event model at all: a connection event can only arrive
+   *over* the connection, so the one state transition that most needs announcing (going offline) is
+   exactly the one a `ServerEvent` can never deliver. §10 already correctly frames this as a transport
+   concern ("the heartbeat timeout that actually triggers the `offline` state") — a real client detects
+   this itself, from the WebSocket's own `close`/error, or a missed heartbeat, never from a payload. The
+   reverse direction (coming back online) *could* be a normal event once reconnected, but by then the
+   client already knows it reconnected from the socket itself succeeding — redundant again.
+5. **`session.changed`** — Part 8 built the entire auth flow as request/response
+   (`requestCode`/`verifyCode`/`selectDesk`/`lock`/`signOut`, each resolving its own `Result`), with
+   nothing else that needs to learn about a session change it didn't cause itself. This would only earn
+   its keep with multi-device-same-operator awareness (one desk learning another signed the same
+   operator out) — not built, not scoped (`DECISIONS.md` #6, same single-operator boundary as hand-off).
+
+No additions needed for anything through Part 9. This isn't a claim that the event union is frozen
+forever — hand-off (§3) or multi-desk paging, if either gets scoped in later, would each plausibly need
+a real new event (an operator needs to *learn* a hand-off was requested, which is exactly the kind of
+fact `ServerEvent` exists for) — just that nothing currently built or currently scoped needs one.
+
+---
+
+**10 Nov — v2 Part 10, `LaneState` + take-next/raise-incident + `ServerEvent` reconciliation (docs only,
+no code):** Resolved all three items §12 had listed as blocked since 2 Oct, now that Parts 1–9 give
+something real to check them against instead of just `STATES.md`. New: §15 (`LaneState`, grounded in
+`Incident`/`LadderState`, explains why `'escalated'`/`'closing'`/`'handoff-requested'` don't map onto
+what got built), §16 (take next resolves to no new command; `raiseIncident`'s already-built shape,
+including the non-obvious P4 severity/insidePropertyLine mapping), §17 (the existing 14-event
+`ServerEvent` union confirmed sufficient through Part 9, each of §4's 5 candidate additions resolved
+with a specific reason, not left as "anticipated" indefinitely). Also corrected drift caught along the
+way, same document, while it was already open: §3's "anticipated" command list was stale — `raiseIncident`
+(Part 7), `acknowledgeEscalation` (Part 2) and `confirmDispatch` (Part 6) were already built and simply
+never got moved into the main table; `resumeLadder` was missing from the table entirely. §2's REST sketch
+gained the endpoints those three plus `raise` and `ladder/resume` need. `DECISIONS.md`'s Auth row
+corrected from "Documented… Blocked" to "Done" (Part 8, 6 Nov) — it had been stale since that part shipped.
+One loose end flagged, not fixed (out of scope for a docs-only point): `AlertState.closed` is never
+actually assigned (§15) — a product call, not an engineering one.
+
+No code changed — nothing to typecheck or test beyond what Parts 1–9 already verified. This point's own
+"done when" is the three things `V2-BUILD-PLAN.md`'s Part 10 row asks for, all now written and grounded
+in the real implementation rather than speculative.
