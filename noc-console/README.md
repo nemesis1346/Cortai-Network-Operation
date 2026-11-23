@@ -79,6 +79,10 @@ src/styles/tokens.css     All design tokens; audit values, mockup originals in c
   already-open alert now goes through `requestFocus` instead (same path the lane cards and escalation
   bar use), a not-yet-open one still goes through `openIncident` unchanged. See
   `docs/V2-BUILD-PLAN.md`'s second "Bug fix, 21 Oct" note.
+- Closing an incident used to set its alert back to `'held'`, so it reappeared in the Held tab and one
+  click reopened it with the ladder armed. It's `'closed'` now: gone from the queue (no tab, no count),
+  shown only in History, and `openIncident` refuses it with `INVALID_STATE` (Yassine, 23 Nov). See
+  `docs/API-CONTRACT.md` §15a and `docs/V2-BUILD-PLAN.md`'s "Bug fix, 23 Nov" note.
 - Unit tests crashed on Node 24/25 (Yassine, 26 Oct review) — a newer Node ships a global `localStorage`
   getter that itself throws without `--localstorage-file`, so `appearance.ts`'s old `typeof localStorage
   !== 'undefined'` guard crashed instead of safely returning false. Fixed by probing it (a real `getItem`

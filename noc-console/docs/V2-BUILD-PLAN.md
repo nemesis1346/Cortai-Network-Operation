@@ -939,3 +939,31 @@ the three written artifacts `V2-BUILD-PLAN.md`'s Part 10 row names, all grounded
 actually built rather than re-asserting the pre-build `STATES.md` proposal.
 
 **Part 10 is done.** Every part of the original v2 build plan (1 through 10) is now complete.
+
+## Bug fix, 23 Nov: a closed alert went back to Held and could reopen
+
+**First of Yassine's post-approval tasks** (23 Nov message, which also approved Parts 1–10). The Part 10
+loose end, `AlertState.closed` never assigned, turned out to matter. Yassine's repro: take an alert,
+close it, open Held. The closed alert sat there next to the real held ones, and clicking it opened a new
+lane with the ladder armed ("Next in 29s"), so talk-down then siren would fire on an incident that was
+already closed.
+
+Root cause: `MockNocClient.closeIncident` set the alert to `'held'`, and `openIncident` never looked at
+the alert's state (only at whether a lane for it was already open, which after close there isn't).
+
+Fix, two lines of behaviour:
+
+- `closeIncident` sets the alert to `'closed'`. Nothing in the UI needed changing for it to leave the
+  queue: `Queue.tsx`'s tabs, `alertsForTab` and `alertCounts` already only knew `new`/`working`/`held`,
+  and the command palette only lists `new`. History was already reading `closedThisShift`.
+- `openIncident` refuses a `closed` alert with `INVALID_STATE`, checked before `LANE_LIMIT` so the
+  refusal is about the alert, not about how many lanes happen to be open. The store's queue-row path
+  turns it into a warning toast, not the lane-limit refusal banner.
+
+Tests (`store.test.ts`, "closed alerts"): state is `closed` after close; absent from all three tabs and
+every count while still in `closedThisShift`; reopen refused with `INVALID_STATE` both straight on the
+client and through the store, with no lane opened and the warning toast shown. All three fail on the old
+code and pass on the new. The existing close test's name ("...and holds the alert") was itself
+describing the bug, renamed.
+
+Contract: `docs/API-CONTRACT.md` §15a (new, the alert transition table), plus §3 and §5 pointers.

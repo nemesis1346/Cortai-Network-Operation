@@ -70,7 +70,7 @@ silently leaving it unmentioned — a future pass over this section should fold 
 
 | `NocClient` method | Endpoint above | Notes |
 |---|---|---|
-| `openIncident` | `POST /incidents` | Idempotent — see §6 |
+| `openIncident` | `POST /incidents` | Idempotent — see §6. Refused with `INVALID_STATE` for a `closed` alert (§15a). |
 | `closeIncident` | `POST /incidents/:id/close` | Idempotent — see §6 |
 | `setFocus` | — | **Desk-local, not a server command.** Focus is "what this operator is looking at right now," not shared state. Keep it client-side (as the store already does) rather than round-tripping it; only the *ledger event* it produces ("Operator entered lane") needs to reach the server. |
 | `bindMic` | `POST /incidents/:id/mic` | `{ incidentId: string \| null, force?: boolean }` |
@@ -136,6 +136,8 @@ checked, not just asserted.
 ## 5. Error codes
 
 Current `ErrorCode` (`LANE_LIMIT`, `MIC_BUSY`, `MEMO_TOO_SHORT`, `NOT_FOUND`, `INVALID_STATE`) stays.
+`INVALID_STATE` covers "this command doesn't apply to the target in its current state": among others,
+`openIncident` on a `closed` alert (§15a), `holdAlert` on anything but a `new` one.
 Anticipated additions once auth and offline handling are real: `OFFLINE` (§8 — refused, never queued,
 per `STATES.md`), `ACCOUNT_LOCKED` (§7 — 5 failed sign-ins), `SESSION_LOCKED`. Not added to the type yet
 — an error code with no path that produces it is dead code, and none of these can fire until auth/offline
@@ -707,15 +709,33 @@ covers that.
   `MicConfirmDialog`) — that's one operator moving their own mic between their own lanes, a `focused`/
   `peripheral` transition under a different name, not an operator-to-operator concept.
 
-**A loose end found while checking this, not fixed here (docs only, per this point's scope):**
-`AlertState` (`'new'|'working'|'held'|'closed'`) has a `'closed'` value that's never actually assigned —
-`closeIncident` sets the alert back to `'held'`, not `'closed'` (`MockNocClient.closeIncident`), and
-`Queue.tsx`'s own tabs are typed `Exclude<AlertState, 'closed'>`, deliberately excluding it. So a closed
-incident's alert is indistinguishable, at the `Alert` level, from one that was simply parked and never
-actioned — the only place "this was actually handled and closed" lives is `ClosedIncidentSummary`/
-`Record` (Part 9). Worth a product call (is "closed" worth its own Held-tab-adjacent bucket, or is
-folding it into Held intentional — "handled" things shouldn't linger in an operator's queue view either
-way?) before a real backend decides whether to ever assign `'closed'` for real.
+### 15a. `AlertState` alongside the lane (decided, Yassine 23 Nov)
+
+Part 10 flagged that `AlertState.closed` was typed but never assigned: `closeIncident` set the alert back
+to `'held'`. That was a real bug, not a cosmetic one: the closed alert sat in the Held tab next to
+genuinely parked ones, and clicking it opened a fresh lane with the ladder armed, so talk-down and then
+siren would fire on an incident already closed. Fixed; the alert's lifecycle is now:
+
+| From | Command | To | Notes |
+|---|---|---|---|
+| `new` | `openIncident` | `working` | Lane opens (`free → focused`/`peripheral` above) |
+| `new` | `holdAlert` | `held` | Any other source state → `INVALID_STATE` |
+| `held` | `openIncident` | `working` | Held alerts can still be taken |
+| `working` | `closeIncident` | `closed` | Same call that moves the lane to `closed` |
+| `closed` | `openIncident` | — | **Refused, `INVALID_STATE`.** Terminal state, no transitions out |
+
+- **A closed alert leaves the queue entirely.** No tab, no count: the queue's tabs are `new`/`working`/
+  `held` only (`Queue.tsx`, `alertCounts`). It shows only in History, via `ClosedIncidentSummary`/
+  `Record` (Part 9).
+- **The state check runs before the lane limit.** A closed alert is refused for what it is, never with
+  `LANE_LIMIT` just because three lanes happen to be open.
+- **Interaction with idempotency (§6).** A *retried* take carrying the original `Idempotency-Key` gets
+  the original response replayed, even if that incident has since closed. Replay is "what did my request
+  do", not "do it again". Any take with a *new* key on a closed alert is `INVALID_STATE`.
+- The `alert.upsert` event carrying `state: 'closed'` is emitted on close, before `incident.closed`. No
+  new event type is needed (§17's list is unchanged).
+- Code: `MockNocClient.closeIncident`/`openIncident`; tests in `src/store/store.test.ts`
+  ("closed alerts").
 
 ## 16. Take next / Raise incident — command shapes (v2 Part 10)
 
@@ -823,3 +843,9 @@ actually assigned (§15) — a product call, not an engineering one.
 No code changed — nothing to typecheck or test beyond what Parts 1–9 already verified. This point's own
 "done when" is the three things `V2-BUILD-PLAN.md`'s Part 10 row asks for, all now written and grounded
 in the real implementation rather than speculative.
+
+**23 Nov — closed alert state (Yassine's first post-approval task):** the `AlertState.closed` loose end
+§15 flagged on 10 Nov was a real bug, not a product question: a closed alert landed back in Held and
+reopened with the ladder armed. Decided and fixed. New §15a gives the alert's full transition table
+(`closed` is terminal, refused with `INVALID_STATE`, checked before the lane limit) and how it interacts
+with §6's idempotency replay. §3's `openIncident` row and §5's `INVALID_STATE` description point at it.
