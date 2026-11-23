@@ -159,6 +159,11 @@ export class MockNocClient implements NocClient {
     if (existing) return ok(existing)
     const alert = this.snap.alerts.find((a) => a.id === alertId)
     if (!alert) return fail('NOT_FOUND', 'Alert not found')
+    // Checked before the lane limit: a closed alert is refused for what it
+    // is, not for whether a lane happens to be free right now.
+    if (alert.state === 'closed') {
+      return fail('INVALID_STATE', 'This alert is closed. Its record is in History.')
+    }
     if (this.snap.incidents.length >= MAX_LANES) {
       return fail('LANE_LIMIT', 'All three lanes are in use. Free a lane or page the second desk.')
     }
@@ -392,7 +397,11 @@ export class MockNocClient implements NocClient {
     this.snap.closedThisShift = [summary, ...this.snap.closedThisShift]
 
     this.snap.incidents = this.snap.incidents.filter((i) => i.id !== inc.id)
-    if (alert) this.setAlertState(alert, 'held')
+    // 'closed', not 'held': a closed alert leaves the queue for good (no tab,
+    // no count) and lives on only as the sealed Record in History. Setting it
+    // back to 'held' put it next to genuinely parked alerts, one click away
+    // from a fresh lane with the ladder re-armed on an incident already closed.
+    if (alert) this.setAlertState(alert, 'closed')
     const stats: ShiftStats = { ...this.snap.stats }
     this.emit({ type: 'incident.closed', incidentId: inc.id, stats, summary })
 
