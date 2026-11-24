@@ -939,3 +939,58 @@ the three written artifacts `V2-BUILD-PLAN.md`'s Part 10 row names, all grounded
 actually built rather than re-asserting the pre-build `STATES.md` proposal.
 
 **Part 10 is done.** Every part of the original v2 build plan (1 through 10) is now complete.
+
+## Bug fix, 23 Nov: a closed alert went back to Held and could reopen
+
+**First of Yassine's post-approval tasks** (23 Nov message, which also approved Parts 1–10). The Part 10
+loose end, `AlertState.closed` never assigned, turned out to matter. Yassine's repro: take an alert,
+close it, open Held. The closed alert sat there next to the real held ones, and clicking it opened a new
+lane with the ladder armed ("Next in 29s"), so talk-down then siren would fire on an incident that was
+already closed.
+
+Root cause: `MockNocClient.closeIncident` set the alert to `'held'`, and `openIncident` never looked at
+the alert's state (only at whether a lane for it was already open, which after close there isn't).
+
+Fix, two lines of behaviour:
+
+- `closeIncident` sets the alert to `'closed'`. Nothing in the UI needed changing for it to leave the
+  queue: `Queue.tsx`'s tabs, `alertsForTab` and `alertCounts` already only knew `new`/`working`/`held`,
+  and the command palette only lists `new`. History was already reading `closedThisShift`.
+- `openIncident` refuses a `closed` alert with `INVALID_STATE`, checked before `LANE_LIMIT` so the
+  refusal is about the alert, not about how many lanes happen to be open. The store's queue-row path
+  turns it into a warning toast, not the lane-limit refusal banner.
+
+Tests (`store.test.ts`, "closed alerts"): state is `closed` after close; absent from all three tabs and
+every count while still in `closedThisShift`; reopen refused with `INVALID_STATE` both straight on the
+client and through the store, with no lane opened and the warning toast shown. All three fail on the old
+code and pass on the new. The existing close test's name ("...and holds the alert") was itself
+describing the bug, renamed.
+
+Contract: `docs/API-CONTRACT.md` §15a (new, the alert transition table), plus §3 and §5 pointers.
+
+## Contract completion, 24 Nov (Yassine's point 2)
+
+Yassine's 23 Nov goal: "one document the backend can be built from without reading the code."
+`docs/API-CONTRACT.md` §2 was a bare endpoint list that skipped the 5 auth endpoints, `getRecord`,
+`holdAlert` and `requestDeskPage`. It's now the full reference:
+
+- **§2a conventions.** The response body is the `Result<T>` the client already uses, literally, so the
+  HTTP client will need no translation layer. HTTP status per error code (for proxies and logs; the
+  client reads `error.code`). Idempotency-Key on take/close.
+- **§2b auth, §2c state/records, §2d commands.** One row per `NocClient` method: body, value, errors,
+  then the behaviour a backend has to copy. All read off `MockNocClient`, not the spec. Checking each
+  claim against the code caught two mistakes in my first draft (halting a non-running ladder isn't a
+  pure no-op, it still marks the incident operator-owned; and I'd written a "new code replaces the old
+  one" rule nothing in the code or decisions says).
+- **§2e session transport**, marked as a proposal: the mock has no token, so nothing decides it yet.
+  Cookie, socket authenticated on upgrade, two new codes (`UNAUTHENTICATED`, `BAD_REQUEST`) not added
+  to the type until the HTTP client can produce them. Needs Yassine's confirmation, or the Lionston flow.
+
+Two real corrections, not just moves: `setFocus` is a server command (the old §3 said desk-local, but
+it's where attended time and `unattendedSince` live), and `bindMic` is `POST /api/mic` (releasing has no
+incident id for the path). §5 now lists every code with its endpoints, and resolves its three old
+"anticipated" codes as not needed.
+
+**Appendix A** carries `src/api/types.ts` verbatim. `src/api/contract.test.ts` keeps it honest: one test
+fails if the appendix differs from `types.ts` (`npm run contract:sync` refreshes it), another fails if
+any `NocClient` method has no row in §2. Both checked to fail on purpose before committing.

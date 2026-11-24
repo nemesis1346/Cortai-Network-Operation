@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockNocClient } from '../api/mock/MockNocClient'
 import { derivePriority } from '../domain/rules'
-import { alertCounts, closedByHour, shiftReportKpis } from './selectors'
+import { alertCounts, alertsForTab, closedByHour, shiftReportKpis } from './selectors'
 import { NocStore } from './store'
 
 async function boot() {
@@ -61,7 +61,7 @@ describe('store over the mock client', () => {
     expect(server(store).micOwnerIncidentId).toBeNull()
   })
 
-  it('will not close without a long enough memo, then closes and holds the alert', async () => {
+  it('will not close without a long enough memo, then closes the incident', async () => {
     const store = await boot()
     await store.openIncident('a1')
     const id = server(store).incidents[0]!.id
@@ -72,6 +72,54 @@ describe('store over the mock client', () => {
     expect(server(store).incidents.length).toBe(0)
     expect(store.getState().ui.record).not.toBeNull()
     expect(alertCounts(server(store)).working).toBe(0)
+  })
+
+  describe('closed alerts (Yassine, 23 Nov)', () => {
+    async function bootAndClose() {
+      const store = await boot()
+      await store.openIncident('a1')
+      const id = server(store).incidents[0]!.id
+      store.openCloseout(id)
+      expect(await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', [])).toBe(true)
+      return { store, id }
+    }
+
+    it('sets the alert to closed on close, not back to held', async () => {
+      const { store } = await bootAndClose()
+      expect(server(store).alerts.find((a) => a.id === 'a1')?.state).toBe('closed')
+    })
+
+    it('leaves the queue entirely: no tab, no count', async () => {
+      const { store, id } = await bootAndClose()
+      const s = server(store)
+      for (const tab of ['new', 'working', 'held'] as const) {
+        expect(alertsForTab(s, tab).some((a) => a.id === 'a1')).toBe(false)
+      }
+      const c = alertCounts(s)
+      expect(c.new + c.working + c.held).toBe(s.alerts.length - 1) // a1 is the only one not counted
+      // ...but stays reachable in History
+      expect(s.closedThisShift.some((x) => x.incidentId === id)).toBe(true)
+    })
+
+    it('refuses to reopen a closed alert with INVALID_STATE, no lane, no ladder', async () => {
+      const client = new MockNocClient()
+      const store = new NocStore(client)
+      await store.connect()
+      await store.openIncident('a1')
+      store.openCloseout(server(store).incidents[0]!.id)
+      await store.submitCloseout('Same white sedan as Tuesday, left after announcement.', [])
+
+      const r = await client.openIncident('a1')
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.error.code).toBe('INVALID_STATE')
+      expect(server(store).incidents.length).toBe(0)
+
+      // Through the store too (the queue-row path): refused, warned, nothing opened
+      await store.openIncident('a1')
+      expect(server(store).incidents.length).toBe(0)
+      expect(store.getState().ui.queueRefusal).toBeNull()
+      expect(store.getState().ui.toast).toMatchObject({ kind: 'warn', text: expect.stringMatching(/closed/i) })
+    })
   })
 
   it('holds a new alert without opening a lane (Yassine, 1 Oct)', async () => {
