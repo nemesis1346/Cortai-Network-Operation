@@ -38,33 +38,192 @@ phase 1 already had, with the computed priority inserted as the new primary key 
 ## 2. Transport
 
 REST for commands (request/response, a result the operator is waiting on), WebSocket for everything
-else (state changes other operators or the ladder itself cause). This matches the shape `NocClient`
-already has — `getSnapshot()` is the REST "give me everything" call, `subscribe()` is the WebSocket
-event stream, and every other method is a command. A real client only needs to implement `NocClient`;
-nothing in the store or components needs to change.
+else (state changes the ladder, the AI or other desks cause). This matches the shape `NocClient`
+already has: `getSnapshot()` is the REST "give me everything" call, `subscribe()` is the WebSocket event
+stream, and every other method is a command. A real client only needs to implement `NocClient`; nothing
+in the store or components needs to change.
 
-```
-GET  /api/snapshot                 -> Snapshot   (NocClient.getSnapshot)
-WS   /api/events                   -> ServerEvent stream (NocClient.subscribe)
-POST /api/incidents                -> open an incident from an alert
-POST /api/incidents/raise          -> raise without an alert (v2 Part 10, see §16)
-POST /api/incidents/:id/close      -> close
-POST /api/incidents/:id/focus      -> (see note below — focus is desk-local, see §3)
-POST /api/incidents/:id/mic        -> bind/release the mic
-POST /api/incidents/:id/ladder/halt
-POST /api/incidents/:id/ladder/resume
-POST /api/incidents/:id/escalation/ack  -> K, v2 Part 10
-POST /api/incidents/:id/dispatch        -> confirm dispatch, v2 Part 10
-POST /api/incidents/:id/siren
-POST /api/incidents/:id/strobe
-POST /api/incidents/:id/notes
-POST /api/pages/:desk/ack
-```
+This section is the complete endpoint reference (completed 24 Nov per Yassine's 23 Nov request: "one
+document the backend can be built from without reading the code"). Every `NocClient` method has exactly
+one row in §2b–§2d; the shapes they name are in Appendix A, verbatim from `src/api/types.ts`.
 
-Not sketched above, built in Parts 8–9 but out of scope for this reconciliation pass (Part 10 is
-`LaneState`/take-next/raise-incident/`ServerEvent` only, per `V2-BUILD-PLAN.md`): the 5 auth endpoints
-(`requestCode`/`verifyCode`/`selectDesk`/`lock`/`signOut`) and `getRecord`. Flagging the gap rather than
-silently leaving it unmentioned — a future pass over this section should fold those in too.
+### 2a. Conventions (all endpoints)
+
+- **Base path** `/api`. JSON in and out (`Content-Type: application/json`), UTF-8. Timestamps are
+  ISO-8601 UTC strings (`ISODate` in Appendix A). Ids are opaque strings.
+- **Every response body is a `Result<T>`, literally** (Appendix A), so the client does no translation:
+
+  ```
+  200  { "ok": true,  "value": <T> }                 // T is null for commands with nothing to return
+  4xx  { "ok": false, "error": { "code": "...", "message": "...", ...extra fields } }
+  ```
+
+  The client branches on `error.code`, never on the HTTP status. The status exists for proxies, logs
+  and retries. `message` is operator-facing English, shown as-is in a toast. The extra fields are
+  `micOwnerIncidentId` (`MIC_BUSY`), `attemptsLeft` (`INVALID_CODE`) and `retryAfterSec`
+  (`EMAIL_LOCKED`, `RATE_LIMITED`, `RESEND_TOO_SOON`).
+- **Status per error code:**
+
+  | `code` | HTTP | Extra fields | Also send |
+  |---|---|---|---|
+  | `NOT_FOUND` | 404 | | |
+  | `INVALID_STATE` | 409 | | |
+  | `LANE_LIMIT` | 409 | | |
+  | `MIC_BUSY` | 409 | `micOwnerIncidentId` | |
+  | `MEMO_TOO_SHORT` | 422 | | |
+  | `INVALID_CODE` | 422 | `attemptsLeft` | |
+  | `CODE_EXPIRED` | 422 | | |
+  | `EMAIL_LOCKED` | 423 | `retryAfterSec` | `Retry-After` header |
+  | `RATE_LIMITED` | 429 | `retryAfterSec` | `Retry-After` header |
+  | `RESEND_TOO_SOON` | 429 | `retryAfterSec` | `Retry-After` header |
+  | `UNAUTHENTICATED` *(proposed, §2e)* | 401 | | |
+  | `BAD_REQUEST` *(proposed, §2e)* | 400 | | |
+
+- **Idempotency.** `POST /api/incidents` and `POST /api/incidents/:id/close` take an `Idempotency-Key`
+  header (a UUID the client generates per user action and reuses on every retry of it). The server keeps
+  key → response for 5 minutes and replays the stored response for a repeat instead of re-executing it.
+  See §6. Every other command is either naturally idempotent (setting a value) or harmless to repeat.
+- **Session.** Every endpoint except `POST /api/auth/code` and `POST /api/auth/verify` requires a
+  signed-in session, and the WebSocket does too. How the session is carried is §2e.
+- **Events.** Commands don't return the state they changed beyond their own `value`. Every state
+  change also arrives on the socket as a `ServerEvent` (§17), which is what the store actually reduces.
+  A client that ignored command responses entirely would still end up in the right state.
+
+### 2b. Session and auth (Part 8)
+
+Email-code (OTP) sign-in, then a desk pick. Limits, all constants in `src/domain/constants.ts`:
+
+| Rule | Value |
+|---|---|
+| Code length | 6 digits |
+| Code valid for | 10 min |
+| Resend cooldown | 30 s between codes for the same email |
+| Codes per email | 5 per rolling hour |
+| Wrong codes before lock | 3. The 3rd burns the code and locks the email |
+| Email lock | 15 min. Applies to both requesting and verifying |
+| Idle lock (client-side) | 15 min of no input locks the screen. The server isn't involved |
+
+| Endpoint | `NocClient` | Request | Success `value` | Errors |
+|---|---|---|---|---|
+| `POST /api/auth/code` | `requestCode` | `{ "email": string }` | `{ "resendAfterSec": number }` | `EMAIL_LOCKED`, `RESEND_TOO_SOON`, `RATE_LIMITED` |
+| `POST /api/auth/verify` | `verifyCode` | `{ "email": string, "code": string }` | `{ "operator": AuthOperator }` | `INVALID_CODE`, `CODE_EXPIRED`, `EMAIL_LOCKED` |
+| `POST /api/auth/desk` | `selectDesk` | `{ "deskId": number }` | `null` | `INVALID_STATE` (no verified code yet), `NOT_FOUND` (desk not in `operator.desks`) |
+| `POST /api/auth/lock` | `lock` | none | `null` | `INVALID_STATE` (no active session) |
+| `POST /api/auth/sign-out` | `signOut` | none | `null` | none: always succeeds, even with no session |
+
+What each one must do:
+
+- **`/auth/code`** accepts *any* email and answers the same way whether or not it belongs to an
+  operator, so the endpoint can't be used to discover which emails exist. Checks run in this order:
+  email locked → `EMAIL_LOCKED`; last code under 30 s ago → `RESEND_TOO_SOON`; 5 codes already sent in
+  the last hour → `RATE_LIMITED` (its `retryAfterSec` counts to when the oldest of the 5 ages out).
+  Otherwise it sends a fresh code and answers `{ resendAfterSec: 30 }`, which the UI uses for its
+  resend countdown.
+- **`/auth/verify`**: email locked → `EMAIL_LOCKED`. Correct code → resets the wrong-attempt counter and
+  returns the operator (`AuthOperator`: id, name, and the desks they may sign into). Expired code →
+  `CODE_EXPIRED`, which does **not** count as a wrong attempt: the operator mistyped nothing
+  (`DECISIONS.md`, 3 Nov). Wrong code → `INVALID_CODE` with `attemptsLeft`. The 3rd wrong code returns
+  `EMAIL_LOCKED` with `retryAfterSec: 900` instead, burns the code and resets the counter. A correct
+  code is single-use.
+- **`/auth/desk`** turns the verified operator into a session on that desk. Only desks listed in
+  `operator.desks` are allowed.
+- **Unlocking** has no endpoint of its own (`DECISIONS.md`, 3 Nov): the lock screen re-runs
+  `/auth/code` + `/auth/verify` for the session's own email, and a successful verify while that same
+  operator's session exists simply keeps the session. No desk re-pick.
+- **`/auth/lock`** changes nothing server-side. Lanes, ladders, timers and paging all keep running while
+  the screen is locked (`STATES.md`). It exists for the audit log: record who locked which desk, when.
+- **`/auth/sign-out`** ends the session (§2e). It does not close the desk's open incidents. Their
+  ladders keep running server-side, the same as during a lock.
+
+### 2c. State and records
+
+| Endpoint | `NocClient` | Request | Success `value` | Errors |
+|---|---|---|---|---|
+| `GET /api/snapshot` | `getSnapshot` | none | `Snapshot` | none beyond the session check |
+| `WS /api/events` | `subscribe` | none | stream of `ServerEvent` (§17), one JSON object per message | none beyond the session check (§2e) |
+| `GET /api/incidents/:id/record` | `getRecord` | none | `IncidentReport` | `NOT_FOUND` (never existed, or still open) |
+
+- **The snapshot is the full desk state**, built server-side at the moment of the call. The client
+  loads it on connect and again after every reconnect, then applies socket events on top. That's how
+  it resyncs after a drop without replaying missed events.
+- **The record is sealed at close and never changes** (Part 9). The server stores the exact
+  `IncidentReport` that `close` returned and serves that copy, not a rebuild: by the time History
+  reopens it, the live `Incident` it came from (ladder, siren/strobe, visits) is gone. It's safe to
+  send `Cache-Control: private, immutable`. Retention is still a placeholder (`DECISIONS.md` #8).
+
+### 2d. Commands
+
+| Endpoint | `NocClient` | Request | Success `value` | Errors |
+|---|---|---|---|---|
+| `POST /api/incidents` | `openIncident` | `{ "alertId": string }` + `Idempotency-Key` | `Incident` | `NOT_FOUND`, `INVALID_STATE` (alert closed, §15a), `LANE_LIMIT` |
+| `POST /api/incidents/raise` | `raiseIncident` | `{ "cameraId": string, "priority": "P1"\|"P2"\|"P3"\|"P4" }` | `Incident` | `NOT_FOUND` (camera), `LANE_LIMIT` |
+| `POST /api/alerts/:id/hold` | `holdAlert` | none | `null` | `NOT_FOUND`, `INVALID_STATE` (alert not `new`) |
+| `POST /api/incidents/:id/close` | `closeIncident` | `{ "memo": string, "nextSteps": NextStepId[] }` + `Idempotency-Key` | `IncidentReport` | `NOT_FOUND`, `MEMO_TOO_SHORT` |
+| `POST /api/focus` | `setFocus` | `{ "incidentId": string \| null }` | `null` | `NOT_FOUND` |
+| `POST /api/mic` | `bindMic` | `{ "incidentId": string \| null, "force"?: boolean }` | `null` | `NOT_FOUND`, `MIC_BUSY` (+ `micOwnerIncidentId`) |
+| `POST /api/incidents/:id/ladder/halt` | `haltLadder` | none | `null` | `NOT_FOUND` |
+| `POST /api/incidents/:id/ladder/resume` | `resumeLadder` | none | `null` | `NOT_FOUND`, `INVALID_STATE` (not halted) |
+| `POST /api/incidents/:id/dispatch` | `confirmDispatch` | none | `null` | `NOT_FOUND`, `INVALID_STATE` (ladder already complete) |
+| `POST /api/incidents/:id/siren` | `setSiren` | `{ "on": boolean }` | `null` | `NOT_FOUND` |
+| `POST /api/incidents/:id/strobe` | `setStrobe` | `{ "on": boolean }` | `null` | `NOT_FOUND` |
+| `POST /api/incidents/:id/notes` | `addNote` | `{ "text": string }` | `null` | `NOT_FOUND`, `INVALID_STATE` (empty after trimming) |
+| `POST /api/incidents/:id/escalation/ack` | `acknowledgeEscalation` | none | `null` | `NOT_FOUND`, `INVALID_STATE` (lane is focused) |
+| `POST /api/pages` | `requestDeskPage` | `{ "reason": string }` | `null` | `INVALID_STATE` (a page is already waiting for acknowledgement) |
+| `POST /api/pages/:desk/ack` | `acknowledgePage` | none | `null` | `NOT_FOUND` (no unacknowledged page for that desk) |
+
+Behaviour a backend must reproduce, per command:
+
+- **`openIncident`.** An alert that already has an open incident returns that incident (200), not an
+  error and not a second lane. Otherwise checks run in this order: alert exists → alert not `closed`
+  (§15a) → fewer than 3 lanes open (`LANE_LIMIT`). The new lane takes the lowest free lane index
+  (0–2), the alert goes to `working`, and the ladder starts `armed` (or `suppressed` when the alert
+  carries `suppressedReason`) using the site's own stage timings, else the default (`DECISIONS.md` #7).
+  If no lane is focused, the new one takes focus.
+- **`raiseIncident`.** Creates a synthetic alert, then runs `openIncident` unchanged. The priority →
+  severity mapping is in §16.
+- **`closeIncident`.** The memo is trimmed and must be at least 40 characters (`MEMO_TOO_SHORT`). On
+  success: attended time is finalised, the mic is released if this lane held it, the Record is sealed
+  (§2c), the alert goes to `closed` (§15a), the lane frees, and focus clears if this lane had it.
+  `NextStepId` values are listed in Appendix A.
+- **`setFocus`** is a real server command, not desk-local (this corrects §3's earlier note). It's where
+  attention time is accounted: the lane losing focus banks its attended seconds and starts its
+  unattended streak (`unattendedSince`, which escalation runs off, §15), the lane gaining focus clears
+  it, and both get `enter`/`leave` ledger entries. `null` means "no lane focused" (camera view). Focus
+  is per desk, not shared between operators. Re-focusing the already-focused lane is a no-op.
+- **`bindMic`.** `incidentId: null` releases the mic and always succeeds. Binding while another lane
+  holds the mic returns `MIC_BUSY` with the holder's id, unless `force: true`, which moves it. Binding
+  the lane that already holds it is a no-op.
+- **`haltLadder`** marks the incident operator-owned and halts an `armed` or `running` ladder. On a
+  ladder that is already halted, suppressed or complete it leaves the ladder as it is and still succeeds.
+  **`resumeLadder`** continues from the elapsed time at the halt, not from zero.
+- **`confirmDispatch`** is stage 4, always the operator's explicit call, never automatic. It works on a
+  suppressed ladder too: suppression stops only the automatic stages.
+- **`setSiren(on: true)`** also halts the ladder: the operator has taken over the response.
+- **`requestDeskPage`** pages the second desk. Only one page can wait for acknowledgement at a time.
+
+### 2e. Session transport (proposed, needs Yassine's confirmation)
+
+The mock has no notion of a token, so nothing in the code decides this yet. Proposal, consistent with
+the endpoints above and standard for a same-origin web app:
+
+- **A cookie, not a bearer token.** `/auth/verify` sets a short-lived `noc_pending` cookie (10 min,
+  the same window as the code) naming the verified operator. `/auth/desk` swaps it for `noc_session`.
+  `/auth/sign-out` clears both. All are `HttpOnly; Secure; SameSite=Strict; Path=/api`, so page
+  scripts can't read them and other sites can't send them.
+- **The WebSocket authenticates on the upgrade request**, with the same cookie (browsers send it
+  automatically on a same-origin upgrade). No session → refuse the upgrade with 401. If the session
+  ends while connected (sign-out elsewhere, expiry), the server closes the socket with code `4401`.
+- **No session → `401` with `code: "UNAUTHENTICATED"`**, a new code. **Malformed request body →
+  `400` with `code: "BAD_REQUEST"`**, also new. Neither is in `ErrorCode` yet: the mock can't produce
+  them, and this project doesn't add codes nothing can raise (§5). They'll be added with the HTTP
+  client (Yassine's point 3), which is the first thing that can produce them.
+- **Client consequence.** Today `main.tsx` loads the snapshot *before* sign-in, which works only
+  because the mock doesn't check. Against a real server the client must call `getSnapshot` and open
+  the socket only after `/auth/desk` succeeds. Point 3 changes this.
+
+If the Lionston flow Yassine mentioned on 1 Oct already fixes how sessions are carried (a bearer token,
+a different cookie name, a session lifetime), that wins over this proposal. Only §2e would change: the
+endpoints, bodies and error codes in §2b–§2d don't depend on it.
 
 ## 3. Commands: existing vs. anticipated
 
