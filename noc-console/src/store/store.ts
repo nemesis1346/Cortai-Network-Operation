@@ -59,10 +59,12 @@ export interface UiState {
 }
 
 export interface AppState {
-  /** null until the first snapshot arrives. The mock "server" connects
-   * regardless of auth (STATES.md: lane timers/ladder/paging run on the
-   * server whether or not an operator is signed in) — `auth` is what gates
-   * the UI, not this. */
+  /** null until the first snapshot arrives. In mock mode the store connects
+   * at boot, regardless of auth (STATES.md: lane timers/ladder/paging run on
+   * the server whether or not an operator is signed in). Over HTTP it can't:
+   * the snapshot needs a session (API-CONTRACT.md §2e), so it connects after
+   * the desk pick and drops back to null on sign-out. Either way `auth` is
+   * what gates the UI. */
   server: Snapshot | null
   ui: UiState
   auth: AuthSession
@@ -99,6 +101,16 @@ const initialConnection: ConnectionState = { status: 'online', since: null }
 
 type Listener = () => void
 
+export interface NocStoreOptions {
+  /** HTTP mode: load the snapshot and open the event socket only once a
+   * session exists (after `selectDesk`), and drop them on sign-out. Default
+   * false: the caller connects at boot, as the mock always has. */
+  connectAfterSignIn?: boolean
+}
+
+/** Wait between snapshot attempts while resyncing after a reconnect. */
+const RESYNC_RETRY_MS = 2000
+
 /**
  * Minimal external store (works with useSyncExternalStore). Depends on NocClient only,
  * so replacing the mock with HTTP + WebSocket changes nothing in here.
@@ -111,8 +123,18 @@ export class NocStore {
   private listeners = new Set<Listener>()
   private toastSeq = 0
   private unsubscribe: (() => void) | null = null
+  private unsubscribeConnection: (() => void) | null = null
+  /** Non-null while a snapshot load is in flight: events that arrive
+   * meanwhile are held here and applied on top of the snapshot. */
+  private buffered: ServerEvent[] | null = null
+  private syncing: Promise<void> | null = null
+  /** Resolves connect() once the first socket open has synced. */
+  private firstOpen: (() => void) | null = null
 
-  constructor(private readonly client: NocClient) {}
+  constructor(
+    private readonly client: NocClient,
+    private readonly opts: NocStoreOptions = {},
+  ) {}
 
   /* ---------- useSyncExternalStore contract ---------- */
 
@@ -125,21 +147,76 @@ export class NocStore {
   /* ---------- lifecycle ---------- */
 
   async connect(): Promise<void> {
-    // Subscribe first so nothing emitted between snapshot and subscribe is lost.
-    const buffered: Parameters<typeof applyEvent>[1][] = []
-    let ready = false
+    if (this.unsubscribe) return
+    // Subscribe first so nothing emitted between snapshot and subscribe is
+    // lost: sync() holds events in `buffered` until the snapshot is in.
+    this.buffered = []
+    // With a real connection, the snapshot has to be taken *after* the
+    // socket is open, or events emitted between the two are lost: the
+    // snapshot predates them and the socket wasn't listening yet. So wait
+    // for the first 'online' and sync then, the same order every reconnect
+    // uses. The mock is connected synchronously, so it syncs straight away.
+    const opened = this.client.onConnectionChange
+      ? new Promise<void>((resolve) => (this.firstOpen = resolve))
+      : null
+    this.unsubscribeConnection = this.client.onConnectionChange?.((s) => void this.onConnection(s)) ?? null
     this.unsubscribe = this.client.subscribe((e) => {
-      if (!ready) {
-        buffered.push(e)
+      if (this.buffered) {
+        this.buffered.push(e)
         return
       }
-      this.setServer(applyEvent(this.state.server as Snapshot, e))
+      if (!this.state.server) return
+      this.setServer(applyEvent(this.state.server, e))
       this.notifyLadderAdvance(e)
     })
-    let snap = await this.client.getSnapshot()
-    for (const e of buffered) snap = applyEvent(snap, e)
-    ready = true
-    this.setServer(snap)
+    await (opened ?? this.sync())
+  }
+
+  /** Loads a fresh snapshot and applies whatever events arrived meanwhile.
+   * Used on connect and after every reconnect (API-CONTRACT.md §2c: resync
+   * by re-snapshot, not by replaying missed events). Retries until it
+   * succeeds or the store disconnects; concurrent calls share one load. */
+  private sync(): Promise<void> {
+    this.buffered ??= []
+    this.syncing ??= (async () => {
+      while (this.unsubscribe) {
+        try {
+          let snap = await this.client.getSnapshot()
+          for (const e of this.buffered ?? []) snap = applyEvent(snap, e)
+          this.buffered = null
+          this.setServer(snap)
+          return
+        } catch {
+          await new Promise((r) => setTimeout(r, RESYNC_RETRY_MS))
+        }
+      }
+    })().finally(() => {
+      this.syncing = null
+    })
+    return this.syncing
+  }
+
+  /** The real connection (HttpNocClient's event socket). Offline shows the
+   * banner and refuses site actions, as the simulated outage always did.
+   * Back online, the banner stays up until the resync has finished, so the
+   * operator never acts on state from before the drop. */
+  private async onConnection(s: 'online' | 'offline'): Promise<void> {
+    if (s === 'offline') {
+      if (this.connectionTimer) {
+        clearTimeout(this.connectionTimer)
+        this.connectionTimer = null
+      }
+      if (this.state.connection.status !== 'offline') {
+        this.setConnection({ status: 'offline', since: new Date().toISOString() })
+      }
+      return
+    }
+    const first = this.firstOpen
+    if (!first && this.state.connection.status !== 'offline') return
+    this.firstOpen = null
+    await this.sync()
+    first?.()
+    if (this.state.connection.status === 'offline') this.setConnection({ status: 'online', since: null })
   }
 
   /**
@@ -161,6 +238,11 @@ export class NocStore {
   disconnect(): void {
     this.unsubscribe?.()
     this.unsubscribe = null
+    this.unsubscribeConnection?.()
+    this.unsubscribeConnection = null
+    this.buffered = null
+    this.firstOpen?.() // don't leave a pending connect() hanging
+    this.firstOpen = null
   }
 
   /* ---------- commands (UI intent -> client) ---------- */
@@ -426,6 +508,7 @@ export class NocStore {
     const r = await this.client.selectDesk(deskId)
     if (r.ok) {
       this.setAuth({ status: 'active', operator, desk: deskId, signedInAt: new Date().toISOString(), email })
+      if (this.opts.connectAfterSignIn) await this.connect()
     }
     return r
   }
@@ -446,7 +529,14 @@ export class NocStore {
 
   async signOut(): Promise<Result<null>> {
     const r = await this.client.signOut()
-    if (r.ok) this.setAuth(initialAuth)
+    if (r.ok) {
+      this.setAuth(initialAuth)
+      if (this.opts.connectAfterSignIn) {
+        this.disconnect()
+        this.state = { ...this.state, server: null, connection: initialConnection }
+        this.emit()
+      }
+    }
     return r
   }
 
@@ -461,9 +551,13 @@ export class NocStore {
     this.connectionTimer = setTimeout(() => this.goOnline(), 8000)
   }
 
-  /** "Retry now" on the banner — ends the simulated outage early. */
+  /** "Retry now" on the banner. A simulated outage just ends early; a real
+   * one asks the client to reconnect now instead of waiting out its backoff,
+   * and the banner clears once that reconnect has resynced (onConnection). */
   retryNow(): void {
-    if (this.state.connection.status === 'offline') this.goOnline()
+    if (this.state.connection.status !== 'offline') return
+    if (!this.connectionTimer && this.client.reconnectNow) this.client.reconnectNow()
+    else this.goOnline()
   }
 
   private goOnline(): void {

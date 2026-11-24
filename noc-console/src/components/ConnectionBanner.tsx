@@ -4,9 +4,10 @@ import { useConnection, useStore } from '../store/context'
 
 /**
  * v2 connection-lost (Yassine, 3 Nov). Sits under the top bar, its own grid
- * row (layout.css) alongside EscalationBar — both can show at once. Nothing
- * in MockNocClient actually goes offline; this reflects the client-only
- * ConnectionState the command palette's "Simulate: connection lost" drives.
+ * row (layout.css) alongside EscalationBar — both can show at once. Over
+ * HTTP it follows the real event socket (HttpNocClient): shown when it
+ * drops, cleared once it's back and the snapshot has resynced. In mock mode
+ * only the command palette's "Simulate: connection lost" drives it.
  */
 export function ConnectionBanner() {
   const store = useStore()
