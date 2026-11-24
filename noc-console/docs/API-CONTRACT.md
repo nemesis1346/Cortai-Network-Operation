@@ -13,12 +13,11 @@ truth for shapes — this document explains and extends it, never duplicates it 
 
 This is a transport and data contract. The queue sort formula is now decided and **implemented**
 (`domain/rules.ts#derivePriority`, §1a below) — it was the one open item that was pure domain logic,
-independent of which interaction model ships. The interaction model itself and the auth flow are still
-open, pending the Lane Workspace / camera-wall Figma call. Building the endpoints below doesn't require
-those answers; building the *screens* that call them does.
+independent of which interaction model ships.
 
-Not touched here, on purpose: `Incident` lifecycle shape, any `LaneState` machine. Those stay with the
-still-open interaction model.
+~~The interaction model itself and the auth flow are still open~~ **Resolved:** both are built (v2 Parts
+1–9) and approved (Yassine, 23 Nov). The lane state machine is §15, the alert state machine §15a, and
+every endpoint, auth included, is §2. Only the session transport (§2e) and hand-off (§3) are still open.
 
 ### 1a. Queue priority (decided, implemented)
 
@@ -227,20 +226,15 @@ endpoints, bodies and error codes in §2b–§2d don't depend on it.
 
 ## 3. Commands: existing vs. anticipated
 
-| `NocClient` method | Endpoint above | Notes |
-|---|---|---|
-| `openIncident` | `POST /incidents` | Idempotent — see §6. Refused with `INVALID_STATE` for a `closed` alert (§15a). |
-| `closeIncident` | `POST /incidents/:id/close` | Idempotent — see §6 |
-| `setFocus` | — | **Desk-local, not a server command.** Focus is "what this operator is looking at right now," not shared state. Keep it client-side (as the store already does) rather than round-tripping it; only the *ledger event* it produces ("Operator entered lane") needs to reach the server. |
-| `bindMic` | `POST /incidents/:id/mic` | `{ incidentId: string \| null, force?: boolean }` |
-| `haltLadder` | `POST /incidents/:id/ladder/halt` | |
-| `resumeLadder` | `POST /incidents/:id/ladder/resume` | Resumes from where it paused (elapsed-at-halt preserved), not from 0 — also missing from this table until Part 10 caught it. |
-| `setSiren` / `setStrobe` | `POST /incidents/:id/siren` / `/strobe` | `{ on: boolean }` |
-| `addNote` | `POST /incidents/:id/notes` | `{ text: string }` |
-| `acknowledgePage` | `POST /pages/:desk/ack` | |
-| `acknowledgeEscalation` | `POST /incidents/:id/escalation/ack` | K. Refused (`INVALID_STATE`) on a focused lane — nothing to acknowledge while attended. |
-| `confirmDispatch` | `POST /incidents/:id/dispatch` | Stage 4, operator-confirmed only, never automatic. |
-| `raiseIncident` | `POST /incidents/raise` | `{ cameraId: string, priority: 'P1'\|'P2'\|'P3'\|'P4' }`. Shape: §16. |
+~~The per-method table that stood here~~ **was folded into §2b–§2d on 24 Nov**, which now has every
+`NocClient` method with its endpoint, body, value and errors. Two rows changed on the way, not just moved:
+
+- **`setFocus` is a real server command** (`POST /api/focus`), not desk-local as this table said. The
+  table assumed focus was only "what the operator is looking at". In the built app it's also where
+  attended/unattended time is banked and `unattendedSince` is set, which escalation runs off (§15). Both
+  are server state, so the server has to see every focus change. Focus is still per desk, not shared.
+- **`bindMic` is `POST /api/mic`**, not `/incidents/:id/mic`. Releasing the mic (`incidentId: null`)
+  has no incident to put in the path.
 
 ~~Anticipated, not in `NocClient` yet~~ — **stale, v2 Part 10 (10 Nov): 3 of these 4 are already built**,
 landed piecemeal across Parts 2/6/7 while this list sat unedited. Corrected:
@@ -294,13 +288,36 @@ checked, not just asserted.
 
 ## 5. Error codes
 
-Current `ErrorCode` (`LANE_LIMIT`, `MIC_BUSY`, `MEMO_TOO_SHORT`, `NOT_FOUND`, `INVALID_STATE`) stays.
-`INVALID_STATE` covers "this command doesn't apply to the target in its current state": among others,
-`openIncident` on a `closed` alert (§15a), `holdAlert` on anything but a `new` one.
-Anticipated additions once auth and offline handling are real: `OFFLINE` (§8 — refused, never queued,
-per `STATES.md`), `ACCOUNT_LOCKED` (§7 — 5 failed sign-ins), `SESSION_LOCKED`. Not added to the type yet
-— an error code with no path that produces it is dead code, and none of these can fire until auth/offline
-are built.
+The full list (`ErrorCode` in Appendix A). HTTP status per code is §2a, and which endpoint returns which
+is §2b–§2d.
+
+| `code` | Meaning | Returned by |
+|---|---|---|
+| `NOT_FOUND` | The id in the request doesn't exist (or, for a record, the incident isn't closed) | most commands, `getRecord`, `selectDesk` |
+| `INVALID_STATE` | The command doesn't apply to the target in its current state | `openIncident` (alert `closed`, §15a), `holdAlert` (not `new`), `resumeLadder` (not halted), `confirmDispatch` (complete), `addNote` (empty), `acknowledgeEscalation` (focused), `requestDeskPage` (already paged), `selectDesk` (no verified code), `lock` (no session) |
+| `LANE_LIMIT` | Three lanes already open | `openIncident`, `raiseIncident` |
+| `MIC_BUSY` | Mic held by another lane; retry with `force` | `bindMic` |
+| `MEMO_TOO_SHORT` | Closing memo under 40 characters after trimming | `closeIncident` |
+| `INVALID_CODE` | Wrong sign-in code | `verifyCode` |
+| `CODE_EXPIRED` | Sign-in code past its 10 minutes | `verifyCode` |
+| `EMAIL_LOCKED` | 3 wrong codes, email locked for 15 min | `requestCode`, `verifyCode` |
+| `RATE_LIMITED` | 5 codes for this email in the last hour | `requestCode` |
+| `RESEND_TOO_SOON` | Under 30 s since the last code | `requestCode` |
+| `UNAUTHENTICATED` *(proposed)* | No session | every session-gated endpoint (§2e) |
+| `BAD_REQUEST` *(proposed)* | Body missing or malformed | any endpoint (§2e) |
+
+The last two aren't in the type yet: nothing in the mock can produce them. They arrive with the HTTP
+client, the first code that can.
+
+The three "anticipated" codes this section used to list are resolved, none of them needed:
+
+- **`OFFLINE`**: refusing commands while the connection is down happens in the client, before any
+  request is made (`NocStore.refuseIfOffline`). A request that can't reach the server can't receive an
+  error code from it either.
+- **`ACCOUNT_LOCKED`** (5 failed password sign-ins): superseded by `EMAIL_LOCKED` when the password step
+  became an email code (Part 8). Lock after 3 wrong codes, not 5.
+- **`SESSION_LOCKED`**: the lock screen is client-only and nothing pauses server-side while locked
+  (§2b), so the server never refuses a command because the screen is locked.
 
 ## 6. Idempotency for take and close
 
@@ -901,7 +918,7 @@ siren would fire on an incident already closed. Fixed; the alert's lifecycle is 
 **Take next resolves to no new command.** There's no server-side "give me the next alert" endpoint,
 because there's no server-side concept of "next" to give — the queue's sort order (§1a) is a client-side
 read of already-synced data, and the operator picks a specific row to click. That's `openIncident(alertId)`,
-already in §3's table. A backend implementer reading "take next" in the brief should build nothing new for
+already in §2d. A backend implementer reading "take next" in the brief should build nothing new for
 it; the queue sort formula (§1a) *is* the feature, `openIncident` is the only command it needs.
 
 **Raise incident** (`NocClient.raiseIncident`, built Part 7 for `CameraWorkspace` — a camera with no AI
@@ -958,7 +975,7 @@ the point of this section is to show the check, not just assert the conclusion:
    client's own arithmetic redundantly, and would need to be perfectly re-derivable from the same
    timestamp anyway or the two could disagree.
 2. **`lane.acknowledged`** — `acknowledgeEscalation` already emits `incident.upsert` with the updated
-   `escalationAcked` (confirmed in §3's table above, Part 10's own correction of that section). A second,
+   `escalationAcked` (§2d). A second,
    parallel event for the same field change has no reader that `incident.upsert` doesn't already serve.
 3. **`video.signal.changed`** — resolved in `camera.updated`'s favor, the option §4 already named but
    left as "worth deciding." `Camera.signal`/`latencyMs` are plain fields on `Camera` (§7); nothing
