@@ -967,3 +967,30 @@ code and pass on the new. The existing close test's name ("...and holds the aler
 describing the bug, renamed.
 
 Contract: `docs/API-CONTRACT.md` §15a (new, the alert transition table), plus §3 and §5 pointers.
+
+## Contract completion, 24 Nov (Yassine's point 2)
+
+Yassine's 23 Nov goal: "one document the backend can be built from without reading the code."
+`docs/API-CONTRACT.md` §2 was a bare endpoint list that skipped the 5 auth endpoints, `getRecord`,
+`holdAlert` and `requestDeskPage`. It's now the full reference:
+
+- **§2a conventions.** The response body is the `Result<T>` the client already uses, literally, so the
+  HTTP client will need no translation layer. HTTP status per error code (for proxies and logs; the
+  client reads `error.code`). Idempotency-Key on take/close.
+- **§2b auth, §2c state/records, §2d commands.** One row per `NocClient` method: body, value, errors,
+  then the behaviour a backend has to copy. All read off `MockNocClient`, not the spec. Checking each
+  claim against the code caught two mistakes in my first draft (halting a non-running ladder isn't a
+  pure no-op, it still marks the incident operator-owned; and I'd written a "new code replaces the old
+  one" rule nothing in the code or decisions says).
+- **§2e session transport**, marked as a proposal: the mock has no token, so nothing decides it yet.
+  Cookie, socket authenticated on upgrade, two new codes (`UNAUTHENTICATED`, `BAD_REQUEST`) not added
+  to the type until the HTTP client can produce them. Needs Yassine's confirmation, or the Lionston flow.
+
+Two real corrections, not just moves: `setFocus` is a server command (the old §3 said desk-local, but
+it's where attended time and `unattendedSince` live), and `bindMic` is `POST /api/mic` (releasing has no
+incident id for the path). §5 now lists every code with its endpoints, and resolves its three old
+"anticipated" codes as not needed.
+
+**Appendix A** carries `src/api/types.ts` verbatim. `src/api/contract.test.ts` keeps it honest: one test
+fails if the appendix differs from `types.ts` (`npm run contract:sync` refreshes it), another fails if
+any `NocClient` method has no row in §2. Both checked to fail on purpose before committing.

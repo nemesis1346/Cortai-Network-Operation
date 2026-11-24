@@ -1025,3 +1025,471 @@ in the real implementation rather than speculative.
 reopened with the ladder armed. Decided and fixed. New §15a gives the alert's full transition table
 (`closed` is terminal, refused with `INVALID_STATE`, checked before the lane limit) and how it interacts
 with §6's idempotency replay. §3's `openIncident` row and §5's `INVALID_STATE` description point at it.
+
+## Appendix A. Shapes, verbatim from `src/api/types.ts`
+
+Every type §2 names (`Snapshot`, `Incident`, `IncidentReport`, `AuthOperator`, `Result`, `ServerEvent`,
+`NextStepId`, and the rest) exactly as the client compiles against it, doc comments included. This copy
+can't silently drift: `src/api/contract.test.ts` fails whenever it differs from `types.ts`. After changing
+the types, run `npm run contract:sync` and commit both files together.
+
+<!-- appendix-a:start -->
+```ts
+/**
+ * NOC console API contract (phase 1 proposal).
+ *
+ * Conventions
+ * - All timestamps are ISO-8601 UTC strings. Durations are whole seconds.
+ * - The server owns state. The client sends commands and receives ServerEvents.
+ * - Running timers (incident age, ladder countdown, attended time) are NOT pushed
+ *   every second. The server sends anchors (startedAt, focusedSince, ...) and the
+ *   client derives the value from its clock. See src/domain/timing.ts.
+ */
+
+export type ISODate = string
+
+/* ---------- Estate ---------- */
+
+/**
+ * v2 STATES.md §7: fault = degraded stream, still live, flagged to
+ * maintenance; offline = no signal, speaker/deterrents may be unavailable.
+ * Two distinct failure modes, not one 'down' bucket (see API-CONTRACT.md §13
+ * for how this replaced the single-state phase 1 model).
+ */
+export type CameraStatus = 'live' | 'motion' | 'fault' | 'offline'
+
+/**
+ * Health of an actively-watched stream, distinct from Camera.status (which
+ * describes the camera whether or not anyone is currently decoding it).
+ * Phase 1 never produces anything but 'live' — typed now so the real player
+ * (WebRTC/go2rtc) has somewhere to report into without a prop-shape change
+ * later. See noc-console/docs/API-CONTRACT.md.
+ */
+export type VideoSignal = 'live' | 'degraded' | 'lost' | 'connecting'
+
+export interface Camera {
+  id: string // "07"
+  siteId: string
+  name: string // "Gate / driveway"
+  status: CameraStatus
+  /** Privacy mask active on this camera. */
+  masked?: boolean
+  /** When status became 'fault' or 'offline'. Present only then. */
+  downSince?: ISODate
+  /** Current stream health. Absent when nothing is actively decoding it. */
+  signal?: VideoSignal
+  /** Glass-to-glass latency in ms for the active stream, when known. */
+  latencyMs?: number
+}
+
+/**
+ * One AI detection backing a bounding-box overlay. `box` is `[x, y, w, h]`,
+ * each 0..1 of the frame — same convention a real detector would use, so
+ * this isn't a UI-only shape invented for the mock.
+ */
+export interface Detection {
+  label: string
+  confidence: number // 0..1
+  box: [x: number, y: number, w: number, h: number]
+}
+
+export interface Site {
+  id: string
+  name: string // "138 Hope St N"
+  locality: string // "Port Hope"
+  cameraIds: string[]
+  /**
+   * Overrides the global response-ladder stage timings for incidents at this
+   * site. Falls back to domain/constants.ts's LADDER_STAGES when absent.
+   * Yassine, 1 Oct: ladder timings come from the site procedure, 30/45/60s
+   * (the existing default) as fallback.
+   */
+  ladderStages?: LadderStageDef[]
+}
+
+/* ---------- Alerts ---------- */
+
+/**
+ * new     - in queue, no lane
+ * working - an open incident holds a lane for it
+ * held    - parked (auto-logged, suppressed, or its incident was closed)
+ * closed  - resolved and archived
+ */
+export type AlertState = 'new' | 'working' | 'held' | 'closed'
+
+/**
+ * The AI's raw event-type classification — 1 = highest. This is an input,
+ * not the sort key: the queue's actual priority (P1–P4) is computed from
+ * this plus insidePropertyLine. See domain/rules.ts#derivePriority and
+ * docs/API-CONTRACT.md §1. Yassine, 1 Oct: "P derived deterministically
+ * from inside-the-line, never set by hand" — this field is the deterministic
+ * input, not a hand-set P value.
+ */
+export type AlertSeverity = 1 | 2 | 3
+
+export interface SubjectDescription {
+  colour?: string
+  body?: string
+  vehicleConfidence?: number // 0..1
+  where?: string
+  personCount?: number
+  personCountConfidence?: number // 0..1
+}
+
+export type RiskFactorWeight = 'high' | 'medium' | 'low'
+
+/** Why-this-alert reasoning (v2 COMPONENTS.md#RiskFactor), replacing the mockup's plain chips. */
+export interface RiskFactorData {
+  label: string
+  weight: RiskFactorWeight
+}
+
+export interface Alert {
+  id: string
+  siteId: string
+  cameraId: string
+  severity: AlertSeverity
+  state: AlertState
+  title: string
+  raisedAt: ISODate
+  /** Detection confidence 0..1, null for non-detection alerts (camera fault). */
+  confidence: number | null
+  /** Inside the property line — the deterministic input to derivePriority, not a sort key itself. */
+  insidePropertyLine: boolean
+  /** Sorted high-weight first; mock seed data keeps that invariant rather than sorting at render. */
+  riskFactors: RiskFactorData[]
+  subject?: SubjectDescription
+  /** AI detections backing the bounding-box overlay, when available. */
+  detections?: Detection[]
+  /**
+   * If set, the voice ladder is suppressed for this alert and the text says why.
+   * Example: "Subject outside property line - log only, do not address".
+   */
+  suppressedReason?: string
+}
+
+/* ---------- Watch list ---------- */
+
+export type WatchBand = 'hi' | 'md' | 'lo'
+
+export interface WatchSignal {
+  count: number
+  text: string
+  when: string
+}
+
+export interface WatchScore {
+  siteId: string
+  cameraId: string
+  score: number // 0..100
+  /** Signed change vs. previous 7-day window. */
+  trend: number
+  band: WatchBand
+  eventCount: number
+  /** Night cluster window, "00:40 - 01:30", or null when there is none. */
+  clusterWindow: string | null
+  /** Hours (0..23) where the cluster peaks. Drives the 24h strip. */
+  peakHours: number[]
+  signals: WatchSignal[]
+  note: string
+}
+
+/* ---------- Voice ladder ---------- */
+
+export type LadderStatus =
+  | 'armed' // waiting for stage 0
+  | 'running'
+  | 'halted' // operator took over
+  | 'suppressed' // never runs (see Alert.suppressedReason)
+  | 'complete' // all stages played
+
+export interface LadderStageDef {
+  index: 0 | 1 | 2 | 3
+  name: string
+  /** Seconds after ladder start at which the stage fires automatically.
+   * Absent for Dispatch (v2 STATES.md §3: "never automatic" — confirmed by
+   * the operator only, see NocClient.confirmDispatch). */
+  atSec?: number
+}
+
+export interface LadderState {
+  incidentId: string
+  status: LadderStatus
+  stages: LadderStageDef[]
+  /** Last stage that has fired, -1 if none. */
+  firedStage: -1 | 0 | 1 | 2 | 3
+  /** Anchor for the countdown. Absent while suppressed. */
+  startedAt?: ISODate
+  /** Freezes the countdown. Present when halted. */
+  haltedAt?: ISODate
+  haltReason?: string
+  suppressedReason?: string
+}
+
+/* ---------- Incidents ---------- */
+
+export interface Incident {
+  id: string
+  alertId: string
+  siteId: string
+  cameraId: string
+  openedAt: ISODate
+  /** Server-assigned lane order. UI lane letters derive from this. */
+  laneIndex: 0 | 1 | 2
+  ladder: LadderState
+  /** True when the operator has ever taken this lane (ladder stops being "unattended"). */
+  operatorOwned: boolean
+  /** Seconds of operator focus banked before focusedSince. */
+  attendedSec: number
+  /** Anchor. Non-null while the operator is currently on this lane. */
+  focusedSince: ISODate | null
+  /**
+   * Anchor for the CURRENT unattended streak — when focus most recently left
+   * this lane (or it opened without getting focus). Null while focused.
+   * Resets to a fresh value on every visit, unlike the lifetime `attendedSec`
+   * total below. Drives LaneCard's self-escalation meter and the
+   * EscalationBar (v2 STATES.md §2: notice 30s, warning 45s, alarm 60s).
+   */
+  unattendedSince: ISODate | null
+  /**
+   * K/Acknowledge quiets the EscalationBar for this streak without resetting
+   * its timer (v2 STATES.md §1: "escalated → escalated (ack): supervisor
+   * informed; timer not reset"). Cleared whenever unattendedSince changes —
+   * i.e. the next time this lane goes unattended, it needs acking again.
+   */
+  escalationAcked: boolean
+  /** Number of times the operator entered the lane. */
+  visits: number
+  noteCount: number
+  siren: boolean
+  strobe: boolean
+  memo?: string
+  nextSteps?: NextStepId[]
+}
+
+export type NextStepId = 'police' | 'owner' | 'plate' | 'patrol' | 'tune'
+
+/* ---------- Ledger, evidence, transcript ---------- */
+
+export type LedgerKind = 'enter' | 'leave' | 'voice' | 'note' | 'action' | 'still'
+
+export interface LedgerEvent {
+  id: string
+  incidentId: string
+  at: ISODate
+  kind: LedgerKind
+  text: string
+  /** Seconds since incident open, for report export. */
+  tPlusSec: number
+}
+
+/** v2 COMPONENTS.md#EvidenceThumb's four categories. */
+export type EvidenceKind = 'plate' | 'face' | 'body' | 'scene'
+
+export interface EvidenceStill {
+  id: string
+  incidentId: string
+  capturedAt: ISODate
+  tPlusSec: number
+  kind: EvidenceKind
+  description: string
+  confidence: number | null
+  /** URL of the still. Phase 1 mock returns null and the UI draws a placeholder. */
+  imageUrl: string | null
+}
+
+export type TranscriptSpeaker = 'ai' | 'op' | 'sys'
+
+export interface TranscriptLine {
+  id: string
+  at: ISODate
+  speaker: TranscriptSpeaker
+  /** Absent for shift-level lines such as "Voice gateway OK". */
+  incidentId?: string
+  text: string
+}
+
+/* ---------- Shift ---------- */
+
+export interface Operator {
+  id: string
+  name: string
+  desk: number
+}
+
+export interface ShiftInfo {
+  startedAt: ISODate
+  operator: Operator
+  camerasEnrolled: number
+  speakersReachable: number
+}
+
+/* ---------- Auth (Part 8) ---------- */
+
+/** What `auth.verifyCode` resolves to, before a desk is chosen — distinct
+ * from `Operator`, whose single `desk` only makes sense once one is. */
+export interface AuthOperator {
+  id: string
+  name: string
+  /** Desks this operator may sign into, 1-4. `selectDesk` must pick from here. */
+  desks: number[]
+}
+
+export type SessionStatus = 'signed-out' | 'active' | 'locked'
+
+/** Client-held auth state. Not part of `Snapshot`: it exists before any
+ * snapshot can be fetched, and `locked` must survive even if the lane data
+ * underneath keeps changing (STATES.md: lanes/timers keep running locked). */
+export interface AuthSession {
+  status: SessionStatus
+  operator: AuthOperator | null
+  desk: number | null
+  signedInAt: ISODate | null
+  /** Set once, at sign-in — the lock screen's "fresh email code" re-sends to
+   * this address rather than asking the operator to type it again. */
+  email: string | null
+}
+
+/** Client-UI-only (connection-lost help article: "Prototype: run Simulate:
+ * connection lost from the command palette"). Nothing in `MockNocClient`
+ * actually goes offline — this just drives the banner, the video overlay,
+ * and the refusal of the 6 site-affecting actions the article names. */
+export interface ConnectionState {
+  status: 'online' | 'offline'
+  since: ISODate | null
+}
+
+export interface DeskPage {
+  desk: number
+  pagedAt: ISODate
+  reason: string
+  acknowledgedAt?: ISODate
+}
+
+export interface ShiftStats {
+  /** Closed incidents only. Open incidents add their live values on the client. */
+  closedAttendedSec: number
+  closedUnattendedSec: number
+  visits: number
+  notes: number
+}
+
+/**
+ * v2 ShiftReportModal: "closed-this-shift table", KPIs and the by-hour
+ * histogram all derive from this. Also History's (Part 9) one row per
+ * closed incident — hence `operator`, needed for its operator filter but
+ * not for anything in ShiftReportModal (one operator per shift there).
+ * Stores severity/insidePropertyLine, not a precomputed priority — same
+ * reason nothing else in the app stores one: domain/rules.ts#derivePriority
+ * is the one place priority gets computed.
+ */
+export interface ClosedIncidentSummary {
+  incidentId: string
+  siteId: string
+  alertTitle: string
+  severity: AlertSeverity
+  insidePropertyLine: boolean
+  openedAt: ISODate
+  closedAt: ISODate
+  attendedSec: number
+  totalSec: number
+  memo: string
+  nextSteps: NextStepId[]
+  operator: Operator
+}
+
+/* ---------- Snapshot + events ---------- */
+
+export interface Snapshot {
+  serverTime: ISODate
+  shift: ShiftInfo
+  sites: Site[]
+  cameras: Camera[]
+  alerts: Alert[]
+  incidents: Incident[]
+  watch: WatchScore[]
+  ledger: LedgerEvent[]
+  evidence: EvidenceStill[]
+  transcript: TranscriptLine[]
+  stats: ShiftStats
+  /** v2 ShiftReportModal's table/KPIs/histogram source. Newest first. */
+  closedThisShift: ClosedIncidentSummary[]
+  /** Incident that currently owns the microphone. */
+  micOwnerIncidentId: string | null
+  /** Incident the operator is focused on. */
+  focusIncidentId: string | null
+  pages: DeskPage[]
+  /** Speaker channel state for the voice strip. */
+  speaker: SpeakerState
+}
+
+export interface SpeakerState {
+  mode: 'idle' | 'ai' | 'human'
+  label: string
+}
+
+/**
+ * Everything the store reduces. The mock ticker and a future WebSocket emit
+ * exactly these; components never see the transport.
+ */
+export type ServerEvent =
+  | { type: 'alert.upsert'; alert: Alert }
+  | { type: 'incident.upsert'; incident: Incident }
+  | { type: 'incident.closed'; incidentId: string; stats: ShiftStats; summary: ClosedIncidentSummary }
+  | { type: 'ladder.updated'; ladder: LadderState }
+  | { type: 'ledger.added'; event: LedgerEvent }
+  | { type: 'evidence.added'; still: EvidenceStill }
+  | { type: 'transcript.added'; line: TranscriptLine }
+  | { type: 'camera.updated'; camera: Camera }
+  | { type: 'watch.updated'; watch: WatchScore }
+  | { type: 'focus.changed'; incidentId: string | null }
+  | { type: 'mic.changed'; incidentId: string | null }
+  | { type: 'speaker.changed'; speaker: SpeakerState }
+  | { type: 'desk.paged'; page: DeskPage }
+  | { type: 'desk.page.acknowledged'; desk: number; at: ISODate }
+
+/* ---------- Commands ---------- */
+
+export type ErrorCode =
+  | 'LANE_LIMIT' // three incidents already open
+  | 'MIC_BUSY' // mic bound to another lane, retry with force
+  | 'MEMO_TOO_SHORT'
+  | 'NOT_FOUND'
+  | 'INVALID_STATE'
+  | 'INVALID_CODE' // wrong 6-digit code (Part 8 · auth)
+  | 'CODE_EXPIRED' // code past its 10-minute window
+  | 'EMAIL_LOCKED' // 3 wrong attempts burned the code and locked the email
+  | 'RATE_LIMITED' // 5 codes/email/hour exceeded
+  | 'RESEND_TOO_SOON' // under the 30s resend cooldown
+
+export interface ApiError {
+  code: ErrorCode
+  message: string
+  /** MIC_BUSY: the incident that currently holds the mic. */
+  micOwnerIncidentId?: string
+  /** INVALID_CODE: attempts left before the email locks. EMAIL_LOCKED /
+   * RESEND_TOO_SOON / RATE_LIMITED: seconds until the operator can try again. */
+  attemptsLeft?: number
+  retryAfterSec?: number
+}
+
+export type Result<T> = { ok: true; value: T } | { ok: false; error: ApiError }
+
+export interface CloseIncidentInput {
+  memo: string
+  nextSteps: NextStepId[]
+}
+
+export interface IncidentReport {
+  incident: Incident
+  alert: Alert
+  site: Site
+  watch: WatchScore | null
+  operator: Operator
+  ledger: LedgerEvent[]
+  evidence: EvidenceStill[]
+  /** This incident's lines only, in order — Record modal's Transcript tab. */
+  transcript: TranscriptLine[]
+}
+```
+<!-- appendix-a:end -->

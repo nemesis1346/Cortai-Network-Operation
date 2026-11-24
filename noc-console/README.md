@@ -13,6 +13,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests for the business rules
 npm run typecheck
+npm run contract:sync   # after editing src/api/types.ts: refresh docs/API-CONTRACT.md's Appendix A
 ```
 
 ## Structure
