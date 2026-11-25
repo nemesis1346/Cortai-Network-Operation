@@ -1,7 +1,8 @@
-import type { Alert, Incident, Snapshot } from '../api/types'
+import type { Alert, Camera, Incident, Snapshot } from '../api/types'
 import { UNATTENDED_ALARM_SEC } from '../domain/constants'
 import { attentionLevel, derivePriority, laneLetter } from '../domain/rules'
 import { fmtClock, unattendedStreakSec } from '../domain/timing'
+import { streamUrlFor } from '../domain/video'
 import { useNow } from '../hooks/useNow'
 import { useConnection, useStore } from '../store/context'
 import { incidentsByLane } from '../store/selectors'
@@ -16,7 +17,7 @@ const LANE_ACCENT = ['lane-a', 'lane-b', 'lane-c'] as const
  * lane · key" in space already reserved below the meter, so revealing it
  * never shifts the card's height.
  */
-function LaneCard({ inc, alert }: { inc: Incident; alert: Alert }) {
+function LaneCard({ inc, alert, camera }: { inc: Incident; alert: Alert; camera: Camera | undefined }) {
   const store = useStore()
   const connection = useConnection()
   const now = useNow()
@@ -33,7 +34,12 @@ function LaneCard({ inc, alert }: { inc: Incident; alert: Alert }) {
       onClick={() => void store.requestFocus(inc.id)}
     >
       <div className="lc-video">
-        <VideoSlot cameraId={inc.cameraId} tier="sub" signal={connection.status === 'offline' ? 'lost' : undefined} />
+        <VideoSlot
+          cameraId={inc.cameraId}
+          tier="sub"
+          streamUrl={streamUrlFor(camera, 'sub')}
+          signal={connection.status === 'offline' ? 'lost' : camera?.signal}
+        />
       </div>
       <div className="lc-body">
         <div className="lc-head">
@@ -62,7 +68,8 @@ export function PeripheralLanes({ server }: { server: Snapshot }) {
           others.map((inc) => {
             const alert = server.alerts.find((a) => a.id === inc.alertId)
             if (!alert) return null
-            return <LaneCard key={inc.id} inc={inc} alert={alert} />
+            const camera = server.cameras.find((c) => c.id === inc.cameraId)
+            return <LaneCard key={inc.id} inc={inc} alert={alert} camera={camera} />
           })
         ) : (
           <p className="empty">
