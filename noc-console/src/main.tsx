@@ -24,7 +24,7 @@ if (import.meta.env.VITE_NOC_API === 'http') {
   const client: NocClient = new HttpNocClient()
   store = new NocStore(client, { connectAfterSignIn: true })
 } else {
-  const mock = new MockNocClient()
+  const mock = new MockNocClient({ go2rtcUrl: import.meta.env.VITE_GO2RTC_URL })
   store = new NocStore(mock)
   void store.connect().then(() => mock.start())
 }

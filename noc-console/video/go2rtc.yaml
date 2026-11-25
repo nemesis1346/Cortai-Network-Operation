@@ -1,0 +1,43 @@
+# Local go2rtc for VideoSlot (Yassine's point 4): plays one video file, looped,
+# as every seeded camera, so the console can be tested without real cameras.
+# See video/README.md. Paths come from the environment:
+#   NOC_VIDEO_FILE  absolute path to an H.264 .mp4 (video/README.md makes one)
+#   NOC_FFMPEG      ffmpeg binary (default: ffmpeg on PATH)
+api:
+  listen: ":1984"
+  origin: "*"            # the console runs on another port (Vite :5173)
+webrtc:
+  listen: ":8555"
+  candidates: [127.0.0.1:8555]
+rtsp:
+  listen: "127.0.0.1:8554"
+ffmpeg:
+  bin: ${NOC_FFMPEG:ffmpeg}
+  # Input template: like go2rtc's own file input, but looping forever.
+  loop: "-re -stream_loop -1 -i {input}"
+streams:
+  # Main streams: the file as-is, no transcode (WebRTC takes H.264 directly).
+  cam07: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam08: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam09: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam12: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam20: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam05: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam06: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam03: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam22: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam31: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  # Sub streams (lane cards): same file. A real NVR serves a lower resolution.
+  cam07_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam08_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam09_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam12_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam20_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam05_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam06_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam03_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam22_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  cam31_sub: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=copy
+  # A deliberately bad feed: re-encoded at 2 fps, under the 3 fps "degraded"
+  # threshold (API-CONTRACT.md §7). Point a camera at it to see that state.
+  slow: ffmpeg:${NOC_VIDEO_FILE}#input=loop#video=h264#raw=-r 2
