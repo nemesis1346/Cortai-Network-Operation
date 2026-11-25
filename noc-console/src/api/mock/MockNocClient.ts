@@ -60,6 +60,14 @@ const MOCK_OPERATOR: AuthOperator = { id: 'op1', name: 'M. Okafor', desks: [1, 2
  * voice ladder and evidence capture on a 1 s tick, and emits ServerEvents. The
  * UI store must not be able to tell it apart from a WebSocket feed.
  */
+export interface MockOptions {
+  now?: number
+  /** Base URL of a go2rtc to point every camera's stream at, e.g.
+   * 'http://localhost:1984' (video/README.md). Unset: no camera has a stream
+   * and every VideoSlot keeps its placeholder, as before point 4. */
+  go2rtcUrl?: string
+}
+
 export class MockNocClient implements NocClient {
   private listeners = new Set<(e: ServerEvent) => void>()
   private timer: ReturnType<typeof setInterval> | null = null
@@ -78,8 +86,8 @@ export class MockNocClient implements NocClient {
   private pendingOperator: AuthOperator | null = null
   private session: { operator: AuthOperator; desk: number } | null = null
 
-  constructor(now: number = Date.now()) {
-    const { sites, cameras } = seedEstate(now)
+  constructor({ now = Date.now(), go2rtcUrl }: MockOptions = {}) {
+    const { sites, cameras } = seedEstate(now, go2rtcUrl)
     const iso = new Date(now).toISOString()
     this.snap = {
       serverTime: iso,

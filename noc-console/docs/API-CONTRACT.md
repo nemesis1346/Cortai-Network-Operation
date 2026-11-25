@@ -342,18 +342,37 @@ in `src/api/types.ts`, and `VideoSlot` renders the bounding-box overlay and a la
 instead of the fixed CSS position it had before. The mock seeds `signal: 'live'`, `latencyMs: 120` and a
 real `Detection` per alert (`box` as `[x, y, w, h]`, each 0..1 of the frame — the same convention v2's
 `VideoStageProps.detections` uses, so a real detector's output needs no translation layer). `signal` is
-typed as `'live' | 'degraded' | 'lost' | 'connecting'` but the mock only ever produces `'live'` — the
-other three are wired through the prop chain and ready for a real player, not yet exercised by any UI
-state, since shipping an unreachable, unverified visual state isn't something I'll do without a way to
-actually trigger and check it.
+typed as `'live' | 'degraded' | 'lost' | 'connecting'`. ~~The mock only ever produces `'live'`~~: since
+25 Nov a real player produces all four (below).
+
+### 7a. Playing a stream (go2rtc, built 25 Nov, Yassine's point 4)
+
+- **`Camera.streamUrl?` / `Camera.subStreamUrl?`**: the go2rtc WebRTC signalling endpoint per tier,
+  e.g. `http://nvr.local:1984/api/webrtc?src=cam07`. The server decides which cameras have one. No URL:
+  `VideoSlot` keeps the placeholder. Lane cards use the sub stream, falling back to the main one.
+- **Signalling** is go2rtc's own HTTP exchange, nothing of ours in between: the browser `POST`s its SDP
+  offer to `streamUrl` (`Content-Type: application/sdp`) and gets the SDP answer back. Non-trickle:
+  one request, sent once ICE gathering finishes (2 s at most). go2rtc must allow the console's origin
+  (`api.origin`), and its WebRTC port must be reachable from the operator's browser.
+- **Player states** come from the receiver's decoded-frame count, sampled every 500 ms
+  (`domain/video.ts#classifyPlayer`), with `STATES.md` §5's thresholds as constants in
+  `domain/constants.ts`: `connecting` until the first frame, `degraded` under 3 fps or after a 900 ms
+  gap, `lost` after 5 s with no frame (or 10 s with no first frame), then reconnect after 3 s.
+- **Two views of health, the worse one shown.** `Camera.signal` is the server's view (camera fault,
+  NVR down), the player's state is the browser's (this stream, on this network). `VideoSlot` shows
+  whichever is worse, and `'lost'` when the console itself is offline.
+- **Verified live** against go2rtc 1.9.15 playing a looped file: `live` with detections over the
+  picture, the sub stream on a lane card, `lost` then retry when go2rtc stopped, `degraded` on a 2 fps
+  feed, back to `live` on its own, placeholder kept for the offline camera. How to run it:
+  `video/README.md`.
 
 Open, for backend:
 
 - **Latency budget.** `docs-v2` cites 140ms in its prototype; phase 1's mock uses 120ms as a placeholder,
   not a target. Needs a real number from whoever specs the go2rtc path.
-- **Reconnect policy.** `STATES.md` §5: degraded at 3fps/900ms frame gap, lost at 5s with no frames,
-  auto-reconnect countdown or manual retry back to `connecting`. Reasonable defaults, need confirming
-  against the real transport.
+- **Reconnect policy.** `STATES.md` §5's thresholds are now built (§7a), with an automatic retry every
+  3 s. No manual "retry" button on the video yet. The numbers still need confirming against real
+  cameras and the real network.
 - **Sub-stream usage.** Full tier for the focused lane, sub for everything else (lane cards, wall) —
   already the phase-1 convention (`tier: 'full' | 'sub'` on every `VideoSlot` call), just needs the real
   bitrate/resolution pair decided per tier.
@@ -1092,6 +1111,14 @@ export interface Camera {
   signal?: VideoSignal
   /** Glass-to-glass latency in ms for the active stream, when known. */
   latencyMs?: number
+  /** go2rtc WebRTC signalling endpoint for the main stream: the client POSTs
+   * an SDP offer and gets the answer back, e.g.
+   * `http://nvr.local:1984/api/webrtc?src=cam07` (API-CONTRACT.md §7).
+   * Absent: no stream to play, VideoSlot shows its placeholder. */
+  streamUrl?: string
+  /** Same, for the low-bandwidth sub stream (lane cards). Falls back to
+   * `streamUrl` when absent. */
+  subStreamUrl?: string
 }
 
 /**

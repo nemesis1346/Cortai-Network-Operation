@@ -14,7 +14,11 @@ const SITE_SEEDS: { id: string; name: string; locality: string; cams: CamSeed[];
   { id: 's5', name: '1496 Winhara Rd', locality: 'Gravenhurst', cams: [['31', 'Compound gate', 'live']] },
 ]
 
-export function seedEstate(now: number): { sites: Site[]; cameras: Camera[] } {
+/** `go2rtcUrl` gives every camera that has a signal a go2rtc stream, named
+ * `cam<id>` and `cam<id>_sub` as in video/go2rtc.yaml. Offline cameras get
+ * none: there's nothing to play, so they keep the placeholder. */
+export function seedEstate(now: number, go2rtcUrl?: string): { sites: Site[]; cameras: Camera[] } {
+  const base = go2rtcUrl?.replace(/\/+$/, '')
   const sites: Site[] = []
   const cameras: Camera[] = []
   for (const s of SITE_SEEDS) {
@@ -36,6 +40,12 @@ export function seedEstate(now: number): { sites: Site[]; cameras: Camera[] } {
         // still decoding; offline = no signal at all (v2 STATES.md §7).
         signal: status === 'fault' ? 'degraded' : status === 'offline' ? 'lost' : 'live',
         latencyMs: status === 'fault' ? 480 : status === 'offline' ? undefined : 120,
+        ...(base && status !== 'offline'
+          ? {
+              streamUrl: `${base}/api/webrtc?src=cam${id}`,
+              subStreamUrl: `${base}/api/webrtc?src=cam${id}_sub`,
+            }
+          : {}),
       })
     }
   }
