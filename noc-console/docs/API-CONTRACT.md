@@ -213,12 +213,17 @@ the endpoints above and standard for a same-origin web app:
   automatically on a same-origin upgrade). No session → refuse the upgrade with 401. If the session
   ends while connected (sign-out elsewhere, expiry), the server closes the socket with code `4401`.
 - **No session → `401` with `code: "UNAUTHENTICATED"`**, a new code. **Malformed request body →
-  `400` with `code: "BAD_REQUEST"`**, also new. Neither is in `ErrorCode` yet: the mock can't produce
-  them, and this project doesn't add codes nothing can raise (§5). They'll be added with the HTTP
-  client (Yassine's point 3), which is the first thing that can produce them.
+  `400` with `code: "BAD_REQUEST"`**, also new. Both are in `ErrorCode` since the HTTP client
+  (24 Nov), the first code that can produce them.
 - **Client consequence.** Today `main.tsx` loads the snapshot *before* sign-in, which works only
   because the mock doesn't check. Against a real server the client must call `getSnapshot` and open
-  the socket only after `/auth/desk` succeeds. Point 3 changes this.
+  the socket only after `/auth/desk` succeeds. Done (24 Nov): with `VITE_NOC_API=http` the store
+  connects after the desk pick, waits for the socket to open before taking the snapshot (or events in
+  between are lost), and drops both on sign-out.
+- **The stub server implements this proposal** (`server/stub.ts`), so it's exercised end to end, not
+  just written down. One stub-only difference: its tokens are HMAC-signed instead of stored, so a
+  restarted stub still accepts the browser's cookie. That's what makes "restart the stub, resync without
+  a page reload" possible. A real backend stores its sessions and can do the same.
 
 If the Lionston flow Yassine mentioned on 1 Oct already fixes how sessions are carried (a bearer token,
 a different cookie name, a session lifetime), that wins over this proposal. Only §2e would change: the
@@ -303,11 +308,12 @@ is §2b–§2d.
 | `EMAIL_LOCKED` | 3 wrong codes, email locked for 15 min | `requestCode`, `verifyCode` |
 | `RATE_LIMITED` | 5 codes for this email in the last hour | `requestCode` |
 | `RESEND_TOO_SOON` | Under 30 s since the last code | `requestCode` |
-| `UNAUTHENTICATED` *(proposed)* | No session | every session-gated endpoint (§2e) |
-| `BAD_REQUEST` *(proposed)* | Body missing or malformed | any endpoint (§2e) |
+| `UNAUTHENTICATED` | No session | every session-gated endpoint (§2e) |
+| `BAD_REQUEST` | Body missing or malformed | any endpoint (§2e) |
+| `NETWORK_ERROR` | **Client only, no server sends it.** The request got no response, or a reply that isn't a `Result` (a proxy answering for a server that's down) | `HttpNocClient`, any command |
 
-The last two aren't in the type yet: nothing in the mock can produce them. They arrive with the HTTP
-client, the first code that can.
+The last three arrived with the HTTP client (24 Nov), the first code that can produce them. Session
+transport (§2e) is still a proposal, so `UNAUTHENTICATED` is too until Yassine confirms it.
 
 The three "anticipated" codes this section used to list are resolved, none of them needed:
 
@@ -1026,6 +1032,12 @@ reopened with the ladder armed. Decided and fixed. New §15a gives the alert's f
 (`closed` is terminal, refused with `INVALID_STATE`, checked before the lane limit) and how it interacts
 with §6's idempotency replay. §3's `openIncident` row and §5's `INVALID_STATE` description point at it.
 
+**24 Nov — HTTP transport (Yassine's point 3):** `HttpNocClient` (`src/api/http/`) implements `NocClient`
+over exactly §2, selected by `VITE_NOC_API=http`. `server/stub.ts` serves §2 with one `MockNocClient`
+behind it, including §2e's cookies and §6's idempotency replay. `ErrorCode` gained `UNAUTHENTICATED`,
+`BAD_REQUEST` and `NETWORK_ERROR` (§5). The connection-lost banner follows the real event socket, and
+every reconnect re-snapshots (§2c). Verified in tests and live in Chrome against the stub.
+
 ## Appendix A. Shapes, verbatim from `src/api/types.ts`
 
 Every type §2 names (`Snapshot`, `Incident`, `IncidentReport`, `AuthOperator`, `Result`, `ServerEvent`,
@@ -1350,10 +1362,11 @@ export interface AuthSession {
   email: string | null
 }
 
-/** Client-UI-only (connection-lost help article: "Prototype: run Simulate:
- * connection lost from the command palette"). Nothing in `MockNocClient`
- * actually goes offline — this just drives the banner, the video overlay,
- * and the refusal of the 6 site-affecting actions the article names. */
+/** Client-UI-only: drives the connection-lost banner, the video overlay,
+ * and the refusal of the 6 site-affecting actions the help article names.
+ * Over HTTP it follows the real event socket (`NocClient.onConnectionChange`);
+ * the in-browser mock never goes offline, so there only the command
+ * palette's "Simulate: connection lost" sets it. Never sent to the server. */
 export interface ConnectionState {
   status: 'online' | 'offline'
   since: ISODate | null
@@ -1461,6 +1474,9 @@ export type ErrorCode =
   | 'EMAIL_LOCKED' // 3 wrong attempts burned the code and locked the email
   | 'RATE_LIMITED' // 5 codes/email/hour exceeded
   | 'RESEND_TOO_SOON' // under the 30s resend cooldown
+  | 'UNAUTHENTICATED' // HTTP only: no signed-in session (API-CONTRACT.md §2e)
+  | 'BAD_REQUEST' // HTTP only: body missing or malformed
+  | 'NETWORK_ERROR' // client only: the request got no response at all; no server sends this
 
 export interface ApiError {
   code: ErrorCode

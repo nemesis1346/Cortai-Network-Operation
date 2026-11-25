@@ -60,4 +60,15 @@ export interface NocClient {
   selectDesk(deskId: number): Promise<Result<null>>
   lock(): Promise<Result<null>>
   signOut(): Promise<Result<null>>
+
+  /* ---------- Transport (Yassine's point 3, 24 Nov) ---------- */
+
+  /** Clients with a real connection (HttpNocClient) report its state here:
+   * 'offline' when the event socket drops, 'online' when it's back. The
+   * store re-fetches the snapshot on every 'online' that follows an
+   * 'offline'. The in-browser mock can't lose its connection, so it leaves
+   * this out. Returns an unsubscribe function. */
+  onConnectionChange?(handler: (status: 'online' | 'offline') => void): () => void
+  /** "Retry now" on the connection-lost banner: skip the backoff wait. */
+  reconnectNow?(): void
 }

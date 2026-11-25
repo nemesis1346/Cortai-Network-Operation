@@ -1,0 +1,10 @@
+{
+  // The stub server runs in Node (tsx), and imports the browser app's mock
+  // client and domain code as-is, so it's checked with both lib sets.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["./**/*.ts", "../src/env.d.ts"]
+}

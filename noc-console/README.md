@@ -10,17 +10,29 @@ only).
 ## Run
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5173, in-browser mock (default)
 npm test           # unit tests for the business rules
-npm run typecheck
+npm run typecheck      # app + server/
 npm run contract:sync   # after editing src/api/types.ts: refresh docs/API-CONTRACT.md's Appendix A
 ```
+
+Over the wire instead of the in-browser mock (two terminals):
+```bash
+npm run stub       # stub server on :8787, MockNocClient behind docs/API-CONTRACT.md §2
+npm run dev:http   # the app with VITE_NOC_API=http; Vite proxies /api (and its WebSocket) to the stub
+```
+Sign in with any email and code `123456`. Stop the stub (Ctrl+C) and the connection-lost banner shows;
+start it again and the page resyncs without a reload. A restarted stub is a fresh shift, since all its
+state is in memory.
 
 ## Structure
 ```
 src/api/types.ts          Proposed backend contract (entities, ServerEvent, commands)
 src/api/client.ts         NocClient interface, the only door between UI and data
 src/api/mock/             MockNocClient (simulates ladder, evidence, paging) + seed data
+src/api/http/             HttpNocClient: NocClient over REST + WebSocket (docs/API-CONTRACT.md §2)
+server/stub.ts            Stub server: MockNocClient behind the real endpoints, for VITE_NOC_API=http
+server/transport.test.ts  End to end over the wire: HttpNocClient + store against the stub
 src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping,
                            appearance (theme/typeface persistence), help (types, context-sensitive
                            article picker, search) + helpRender.tsx (the Markdown-subset renderer)

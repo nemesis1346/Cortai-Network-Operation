@@ -29,11 +29,10 @@ export default function App() {
   useHotkeys(store)
   useIdleLock(store, auth.status === 'active', (server?.incidents.length ?? 0) > 0)
 
-  if (!server) return <p className="empty" style={{ padding: 24 }}>Connecting…</p>
-  // The mock "server" connects regardless of session (lane timers/ladder run
-  // either way) — this is the only thing gating the console UI itself.
-  // HelpModal comes along on both screens too: F1 still needs to reach the
-  // sign-in/lock-screen articles while they're what's actually on screen.
+  // Auth gates first: over HTTP there's no snapshot until a session exists
+  // (API-CONTRACT.md §2e), so waiting for `server` here would never reach
+  // the sign-in screen. HelpModal comes along on both screens too: F1 still
+  // needs to reach the sign-in/lock-screen articles while they're on screen.
   if (auth.status === 'signed-out') {
     return (
       <>
@@ -50,6 +49,8 @@ export default function App() {
       </>
     )
   }
+
+  if (!server) return <p className="empty" style={{ padding: 24 }}>Connecting…</p>
 
   return (
     <ViewportGate>

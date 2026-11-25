@@ -313,10 +313,11 @@ export interface AuthSession {
   email: string | null
 }
 
-/** Client-UI-only (connection-lost help article: "Prototype: run Simulate:
- * connection lost from the command palette"). Nothing in `MockNocClient`
- * actually goes offline — this just drives the banner, the video overlay,
- * and the refusal of the 6 site-affecting actions the article names. */
+/** Client-UI-only: drives the connection-lost banner, the video overlay,
+ * and the refusal of the 6 site-affecting actions the help article names.
+ * Over HTTP it follows the real event socket (`NocClient.onConnectionChange`);
+ * the in-browser mock never goes offline, so there only the command
+ * palette's "Simulate: connection lost" sets it. Never sent to the server. */
 export interface ConnectionState {
   status: 'online' | 'offline'
   since: ISODate | null
@@ -424,6 +425,9 @@ export type ErrorCode =
   | 'EMAIL_LOCKED' // 3 wrong attempts burned the code and locked the email
   | 'RATE_LIMITED' // 5 codes/email/hour exceeded
   | 'RESEND_TOO_SOON' // under the 30s resend cooldown
+  | 'UNAUTHENTICATED' // HTTP only: no signed-in session (API-CONTRACT.md §2e)
+  | 'BAD_REQUEST' // HTTP only: body missing or malformed
+  | 'NETWORK_ERROR' // client only: the request got no response at all; no server sends this
 
 export interface ApiError {
   code: ErrorCode

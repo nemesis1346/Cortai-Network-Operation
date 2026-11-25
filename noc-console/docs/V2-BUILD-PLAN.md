@@ -994,3 +994,37 @@ incident id for the path). §5 now lists every code with its endpoints, and reso
 **Appendix A** carries `src/api/types.ts` verbatim. `src/api/contract.test.ts` keeps it honest: one test
 fails if the appendix differs from `types.ts` (`npm run contract:sync` refreshes it), another fails if
 any `NocClient` method has no row in §2. Both checked to fail on purpose before committing.
+
+## Real transport, 24 Nov (Yassine's point 3)
+
+Done when: the full flow works over http against the stub, and stopping/restarting the stub shows the
+banner, then resyncs without a page reload. Both verified live in Chrome, plus 5 tests over the wire.
+
+- **`HttpNocClient`** (`src/api/http/`): `NocClient` over `API-CONTRACT.md` §2. Bodies are already
+  `Result<T>`, passed through. No response, or a non-`Result` reply (Vite's proxy answering for a dead
+  stub), becomes `NETWORK_ERROR`. Take/close carry an `Idempotency-Key`, reused on up to two retries.
+  The event socket is the connection: it reports offline/online and reconnects with backoff.
+- **`server/stub.ts`** (`npm run stub`): one `MockNocClient` behind every §2 endpoint, with §2e's
+  cookies, socket auth on upgrade, and §6's idempotency replay. Session tokens are HMAC-signed rather
+  than stored, because a restarted stub has to accept the browser's existing cookie, or "resync without
+  a reload" can't happen at all.
+- **Store**: `VITE_NOC_API=http` (`npm run dev:http`) makes it connect after the desk pick (the snapshot
+  needs a session) and drop state on sign-out. `App` now checks auth before waiting on a snapshot, or
+  sign-in would never render. The banner follows the real socket and clears only once a fresh snapshot
+  is in. "Retry now" skips the backoff. Mock mode is unchanged (checked live: zero `/api` calls, the
+  palette's simulated outage still works).
+
+**Bug the over-the-wire tests caught, before any live run:** the HTTP snapshot came back before the
+WebSocket finished opening, so events emitted in between were lost. The first take after sign-in never
+showed up. The mock hid it because its subscribe is synchronous. Fixed: with a real connection, the store
+waits for the socket's first open and takes the snapshot then, the same order every reconnect uses.
+
+Live run (Chrome, against `npm run stub` + `npm run dev:http`): sign-in, take, close, Record, History,
+all over http. Stub stopped → banner in 3 ms, take refused "Offline · not sent". Stub restarted →
+banner cleared in ~0.3 s, a `window` marker proved no reload, the queue showed the restarted stub's
+fresh shift, and a new take arrived over the new socket. No non-2xx responses, no page errors.
+
+Not done, deliberately: an application-level heartbeat. A stub that's killed closes the socket at once,
+but a half-open connection (a network cable pulled) would only be noticed when TCP gives up. `STATES.md`
+§10 wants a heartbeat timeout for that; it needs a server-side ping message the contract doesn't have
+yet, so it's flagged here, not invented.
