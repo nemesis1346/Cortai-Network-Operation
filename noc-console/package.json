@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc -p server --noEmit",
     "test": "vitest run",
-    "contract:sync": "node scripts/sync-contract-types.mjs"
+    "contract:sync": "node scripts/sync-contract-types.mjs",
+    "perf:build": "vite build --mode perf --outDir dist-perf && vite build --mode perf-http --outDir dist-perf-http"
   },
   "dependencies": {
     "react": "^19.1.0",

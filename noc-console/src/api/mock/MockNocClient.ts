@@ -1,4 +1,6 @@
 import type { NocClient } from '../client'
+import { applyEvent } from '../../store/reducer'
+import { makeBurst, rng, seedLoad, type LoadFixtureOptions } from './loadFixture'
 import type {
   Alert,
   ApiError,
@@ -66,6 +68,9 @@ export interface MockOptions {
    * 'http://localhost:1984' (video/README.md). Unset: no camera has a stream
    * and every VideoSlot keeps its placeholder, as before point 4. */
   go2rtcUrl?: string
+  /** Scale check (point 5): 48 cameras, 200 alerts and a burst of events
+   * every tick instead of the normal seed. See loadFixture.ts. */
+  fixture?: LoadFixtureOptions
 }
 
 export class MockNocClient implements NocClient {
@@ -81,14 +86,22 @@ export class MockNocClient implements NocClient {
   private records = new Map<string, IncidentReport>()
 
   /* ---------- auth (Part 8) ---------- */
+  private fixture: LoadFixtureOptions | null = null
+  private fixtureRng: (() => number) | null = null
+  private fixtureSeq = { n: 0 }
   private authByEmail = new Map<string, EmailAuthState>()
   /** Verified by code, not yet on a desk. */
   private pendingOperator: AuthOperator | null = null
   private session: { operator: AuthOperator; desk: number } | null = null
 
-  constructor({ now = Date.now(), go2rtcUrl }: MockOptions = {}) {
-    const { sites, cameras } = seedEstate(now, go2rtcUrl)
+  constructor({ now = Date.now(), go2rtcUrl, fixture }: MockOptions = {}) {
+    const load = fixture ? seedLoad(now, fixture.seed) : null
+    const { sites, cameras } = load ?? seedEstate(now, go2rtcUrl)
     const iso = new Date(now).toISOString()
+    if (fixture) {
+      this.fixture = fixture
+      this.fixtureRng = rng(fixture.seed ^ 0x9e3779b9) // bursts get their own stream, so seed data and traffic don't shift each other
+    }
     this.snap = {
       serverTime: iso,
       shift: {
@@ -99,9 +112,9 @@ export class MockNocClient implements NocClient {
       },
       sites,
       cameras,
-      alerts: seedAlerts(now),
+      alerts: load?.alerts ?? seedAlerts(now),
       incidents: [],
-      watch: seedWatch(),
+      watch: load?.watch ?? seedWatch(),
       ledger: [],
       evidence: [],
       transcript: [],
@@ -464,6 +477,22 @@ export class MockNocClient implements NocClient {
       }
     }
     this.maybePage()
+    if (this.fixture && this.fixtureRng) this.loadBurst(this.fixtureRng, this.fixture.burstSize)
+  }
+
+  /** Point 5: one burst of fixture traffic, applied to the mock's own state
+   * with the store's reducer (so mock and client can't disagree), then
+   * emitted exactly as real events are. */
+  private loadBurst(r: () => number, size: number): void {
+    // Timed separately ('mock-burst'): in this build the "server" shares the
+    // page's main thread, which a real backend doesn't, so the perf probe
+    // reports its cost apart from the app's own.
+    const t0 = performance.now()
+    const events = makeBurst(r, this.snap, size, this.fixtureSeq)
+    for (const e of events) this.snap = applyEvent(this.snap, e)
+    const t1 = performance.now()
+    for (const e of events) this.emit(e)
+    performance.measure('mock-burst', { start: t0, end: t1 })
   }
 
   /**

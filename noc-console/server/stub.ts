@@ -96,7 +96,18 @@ export interface Stub {
 
 export async function startStub({ port = 8787, tick = true, log = false }: StubOptions = {}): Promise<Stub> {
   // NOC_GO2RTC_URL: same as the browser mock's VITE_GO2RTC_URL (video/README.md).
-  const mock = new MockNocClient({ go2rtcUrl: process.env.NOC_GO2RTC_URL })
+  // NOC_FIXTURE=load (+ NOC_BURST, NOC_SEED): the scale-check fixture over
+  // the wire, with 3 lanes opened before the first client connects
+  // (docs/PERFORMANCE.md).
+  const fixture =
+    process.env.NOC_FIXTURE === 'load'
+      ? { seed: Number(process.env.NOC_SEED ?? 1), burstSize: Number(process.env.NOC_BURST ?? 50) }
+      : undefined
+  const mock = new MockNocClient({ go2rtcUrl: process.env.NOC_GO2RTC_URL, fixture })
+  if (fixture) {
+    const waiting = (await mock.getSnapshot()).alerts.filter((a) => a.state === 'new').slice(0, 3)
+    for (const a of waiting) await mock.openIncident(a.id)
+  }
   /** Signed-out tokens, so a copied cookie can't outlive its sign-out. In
    * memory only: a restart forgets them, acceptable for a local stub. */
   const revoked = new Set<string>()

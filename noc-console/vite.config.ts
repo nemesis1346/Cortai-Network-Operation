@@ -6,12 +6,15 @@ import react from '@vitejs/plugin-react'
 // the app runs with VITE_NOC_API=http; the default mock mode never calls /api.
 const STUB = 'http://localhost:8787'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // `--mode perf` / `perf-http` (npm run perf:build): React's profiling build, so the perf
+  // probe's Profiler reports real production timings (docs/PERFORMANCE.md).
+  resolve: mode.startsWith('perf') ? { alias: { 'react-dom/client': 'react-dom/profiling' } } : {},
   server: {
     // Same origin for the browser, so the session cookie (API-CONTRACT.md §2e)
     // needs no CORS and the WebSocket upgrade carries it automatically.
     proxy: { '/api': { target: STUB, ws: true } },
   },
   test: { environment: 'node', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] },
-})
+}))
