@@ -1060,3 +1060,28 @@ parts are go2rtc starting ffmpeg, waiting for the next keyframe (every 2 s in th
 non-trickle ICE wait. Worth measuring against real cameras before tuning anything. The camera wall's
 tiles are still placeholders: 10 simultaneous streams is a bandwidth decision (sub streams? snapshots?)
 that isn't mine to make.
+
+## Scale check, 26 Nov (Yassine's point 5)
+
+Full write-up, method and every number: `docs/PERFORMANCE.md`. Summary:
+
+- **Fixture** (`src/api/mock/loadFixture.ts`): seeded, deterministic. 48 cameras, 200 alerts, 3 lanes,
+  bursts of 0/50/200 events per second. Available in the browser mock (`VITE_NOC_FIXTURE=load`) and over
+  the wire (`NOC_FIXTURE=load npm run stub`).
+- **Measured** in a production build with React's profiling build (`npm run perf:build`), headless
+  Chrome at 1× and 4× CPU, 20 s windows with simulated operator activity.
+- **Three problems found and fixed:**
+  1. `useNow` gave every clock its own timer: ~170 timers meant ~60 commits/s at idle. Now one shared
+     clock per interval: 8–9 commits/s.
+  2. The focused lane and the queue re-rendered everything on any change (clock tick, keystroke, any
+     event). Now memoised logs, rows and sorting, and the note field holds its own draft. Lanes 341 → 116
+     ms and Queue 220 → 119 ms per 20 s at 4× stress.
+  3. Over the WebSocket every event was its own commit (the synchronous mock hid this): 8 fps at 4×
+     stress. The store now applies events once per frame (`coalesceEvents`). Back to 56 fps, ~10
+     commits/s at any event rate.
+- **Open, not fixed:** lane logs and transcript are unbounded (linear growth, visible in a 2-minute soak
+  at 200/s). Windowing the log is the fix if real traffic gets near that. The real event rate is the
+  number to get from the backend team.
+
+The measuring driver (Playwright) isn't committed: it would add `playwright-core` as a dev dependency,
+which I've asked about rather than done.
