@@ -28,6 +28,9 @@ state is in memory.
 Real video: `VITE_GO2RTC_URL=http://localhost:1984 npm run dev` plays every camera from a local go2rtc
 (`video/README.md` has the 3-step setup). Without it, cameras show the placeholder as before.
 
+Scale check: `npm run perf:build` builds the 48-camera / 200-alert load fixture with a perf probe;
+method, numbers and what was fixed are in `docs/PERFORMANCE.md`.
+
 ## Structure
 ```
 src/api/types.ts          Proposed backend contract (entities, ServerEvent, commands)
@@ -38,6 +41,8 @@ server/stub.ts            Stub server: MockNocClient behind the real endpoints, 
 server/transport.test.ts  End to end over the wire: HttpNocClient + store against the stub
 src/hooks/useGo2rtcStream WebRTC to go2rtc for VideoSlot; health from decoded frames (domain/video.ts)
 video/                    go2rtc.yaml + README: a local go2rtc playing a file as every camera
+src/api/mock/loadFixture  Scale-check fixture: seeded 48 cameras, 200 alerts, event bursts (docs/PERFORMANCE.md)
+src/perf/probe.tsx        Perf-build-only probe: commits, frames, long tasks, input latency on window.__nocPerf
 src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping,
                            appearance (theme/typeface persistence), help (types, context-sensitive
                            article picker, search) + helpRender.tsx (the Markdown-subset renderer)

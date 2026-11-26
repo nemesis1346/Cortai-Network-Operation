@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import type { Alert, AlertState, Snapshot } from '../api/types'
 import { derivePriority, laneLetter } from '../domain/rules'
 import { fmtClock } from '../domain/timing'
@@ -27,7 +28,10 @@ function AgeTag({ raisedAt }: { raisedAt: string }) {
 
 /** A div, not a button: it hosts a real nested "Hold" button, which a <button>
  * can't contain. Taking the alert is still one click, just on a role="button". */
-function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
+/* Point 5: memoised, so a burst that re-scores a few alerts re-renders those
+ * rows, not all ~170. Props are the alert itself (a new object only when that
+ * alert changed) and its lane letter. */
+const QueueRow = memo(function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
   const store = useStore()
   const priority = derivePriority(alert)
   return (
@@ -65,7 +69,7 @@ function QueueRow({ alert, lane }: { alert: Alert; lane: string | null }) {
       </div>
     </div>
   )
-}
+})
 
 const PRIORITY_FILTERS: { id: UiState['queuePriorityFilter']; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -75,12 +79,17 @@ const PRIORITY_FILTERS: { id: UiState['queuePriorityFilter']; label: string }[] 
 export function Queue({ server }: { server: Snapshot }) {
   const store = useStore()
   const ui = useUi()
-  const counts = alertCounts(server)
-  const tabRows = alertsForTab(server, ui.queueTab)
-  const rows =
-    ui.queuePriorityFilter === 'high'
-      ? tabRows.filter((a) => derivePriority(a) === 'P1' || derivePriority(a) === 'P2')
-      : tabRows
+  // Point 5: sort and count only when alerts or watch scores change, not on
+  // every unrelated server event or UI change.
+  const counts = useMemo(() => alertCounts(server), [server.alerts])
+  const tabRows = useMemo(() => alertsForTab(server, ui.queueTab), [server.alerts, server.watch, ui.queueTab])
+  const rows = useMemo(
+    () => (ui.queuePriorityFilter === 'high' ? tabRows.filter((a) => derivePriority(a) === 'P1' || derivePriority(a) === 'P2') : tabRows),
+    [tabRows, ui.queuePriorityFilter],
+  )
+  // alertId -> lane letter, built once per change to incidents instead of a
+  // find() per row.
+  const laneOf = useMemo(() => new Map(server.incidents.map((i) => [i.alertId, laneLetter(i)])), [server.incidents])
 
   return (
     <section className="queue-region" aria-labelledby="h-queue">
@@ -123,10 +132,7 @@ export function Queue({ server }: { server: Snapshot }) {
 
       <div className="queue-list">
         {rows.length ? (
-          rows.map((a) => {
-            const inc = server.incidents.find((i) => i.alertId === a.id)
-            return <QueueRow key={a.id} alert={a} lane={inc ? laneLetter(inc) : null} />
-          })
+          rows.map((a) => <QueueRow key={a.id} alert={a} lane={laneOf.get(a.id) ?? null} />)
         ) : (
           <p className="empty">
             {tabRows.length ? 'No P1–P2 alerts in this tab.' : EMPTY_COPY[ui.queueTab]}

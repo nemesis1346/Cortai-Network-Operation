@@ -474,3 +474,53 @@ describe('Record and History (v2 Part 9)', () => {
     expect(store.getState().ui.historyOpen).toBe(false)
   })
 })
+
+describe('event coalescing (point 5, docs/PERFORMANCE.md)', () => {
+  async function bootCoalescing() {
+    const client = new MockNocClient()
+    const store = new NocStore(client, { coalesceEvents: true })
+    await store.connect()
+    let emits = 0
+    store.subscribe(() => emits++)
+    return { client, store, emits: () => emits }
+  }
+
+  it('applies a run of events in one update, not one per event', async () => {
+    const { client, store, emits } = await bootCoalescing()
+    // Three lanes in a row: ~20 server events, all received before the next frame.
+    for (const id of ['a1', 'a2', 'a3']) await client.openIncident(id)
+    expect(server(store).incidents.length).toBe(0) // not applied yet
+    expect(emits()).toBe(0)
+    await new Promise((r) => setTimeout(r, 150)) // no rAF in node: the 100ms fallback flushes
+    expect(server(store).incidents.length).toBe(3)
+    expect(emits()).toBe(1)
+  })
+
+  it('never lets a command decide from state that is a frame old', async () => {
+    const { client, store } = await bootCoalescing()
+    await client.openIncident('a1') // lane A open on the "server", not applied in the store yet
+    const id = (await client.getSnapshot()).incidents[0]!.id
+    // A queue-row click on the same alert must see that lane already exists and
+    // focus it, not ask the server to open it again.
+    await store.openIncident('a1')
+    expect(server(store).incidents.map((i) => i.id)).toEqual([id])
+    expect(server(store).focusIncidentId).toBe(id)
+  })
+
+  it('drops nothing: the coalesced state matches applying each event alone', async () => {
+    const a = await bootCoalescing()
+    const b = { store: new NocStore(new MockNocClient()) }
+    await b.store.connect()
+    for (const s of [a.store, b.store]) {
+      await s.openIncident('a1')
+      await s.openIncident('a2')
+      await s.holdAlert('a4')
+    }
+    await new Promise((r) => setTimeout(r, 150))
+    const pick = (s: NocStore) => {
+      const x = server(s)
+      return { alerts: x.alerts.map((al) => [al.id, al.state]), lanes: x.incidents.length, focus: !!x.focusIncidentId, ledger: x.ledger.length }
+    }
+    expect(pick(a.store)).toEqual(pick(b.store))
+  })
+})

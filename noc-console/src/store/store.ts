@@ -106,7 +106,17 @@ export interface NocStoreOptions {
    * session exists (after `selectDesk`), and drop them on sign-out. Default
    * false: the caller connects at boot, as the mock always has. */
   connectAfterSignIn?: boolean
+  /** Apply incoming events once per animation frame instead of one at a
+   * time (point 5, docs/PERFORMANCE.md). Over the WebSocket every event is
+   * its own message, so without this every event was its own React commit:
+   * 200 events/s meant ~200 full renders a second. Default false (tests,
+   * which read state synchronously); main.tsx turns it on. */
+  coalesceEvents?: boolean
 }
+
+/** Longest an event waits when frames aren't running (a hidden tab pauses
+ * requestAnimationFrame): the store still keeps up, just in bigger steps. */
+const FLUSH_MAX_WAIT_MS = 100
 
 /** Wait between snapshot attempts while resyncing after a reconnect. */
 const RESYNC_RETRY_MS = 2000
@@ -130,6 +140,10 @@ export class NocStore {
   private syncing: Promise<void> | null = null
   /** Resolves connect() once the first socket open has synced. */
   private firstOpen: (() => void) | null = null
+  /** coalesceEvents: received, not yet applied. */
+  private pending: ServerEvent[] = []
+  private flushFrame: number | null = null
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly client: NocClient,
@@ -165,11 +179,47 @@ export class NocStore {
         this.buffered.push(e)
         return
       }
+      if (this.opts.coalesceEvents) {
+        this.pending.push(e)
+        this.scheduleFlush()
+        return
+      }
       if (!this.state.server) return
       this.setServer(applyEvent(this.state.server, e))
       this.notifyLadderAdvance(e)
     })
     await (opened ?? this.sync())
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimer) return
+    const run = () => this.flushPending()
+    if (typeof requestAnimationFrame === 'function') this.flushFrame = requestAnimationFrame(run)
+    this.flushTimer = setTimeout(run, FLUSH_MAX_WAIT_MS)
+  }
+
+  /** Applies every pending event in one pass and notifies React once. */
+  private flushPending(): void {
+    if (this.flushFrame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.flushFrame)
+    if (this.flushTimer) clearTimeout(this.flushTimer)
+    this.flushFrame = null
+    this.flushTimer = null
+    if (!this.pending.length || !this.state.server) return
+    const events = this.pending
+    this.pending = []
+    let s = this.state.server
+    for (const e of events) s = applyEvent(s, e)
+    this.setServer(s)
+    for (const e of events) this.notifyLadderAdvance(e)
+  }
+
+  /** Server state as of every event received so far. Commands read through
+   * this, never `this.state.server` directly: with coalescing on, the last
+   * frame's events may not be applied yet, and a command must not decide
+   * from state up to a frame old. */
+  private current(): Snapshot | null {
+    if (this.pending.length) this.flushPending()
+    return this.state.server
   }
 
   /** Loads a fresh snapshot and applies whatever events arrived meanwhile.
@@ -178,6 +228,8 @@ export class NocStore {
    * succeeds or the store disconnects; concurrent calls share one load. */
   private sync(): Promise<void> {
     this.buffered ??= []
+    // Events from before this (re)sync are superseded by the snapshot it loads.
+    this.pending = []
     this.syncing ??= (async () => {
       while (this.unsubscribe) {
         try {
@@ -243,6 +295,8 @@ export class NocStore {
     this.buffered = null
     this.firstOpen?.() // don't leave a pending connect() hanging
     this.firstOpen = null
+    this.pending = []
+    this.flushPending() // clears the scheduled frame/timer; nothing left to apply
   }
 
   /* ---------- commands (UI intent -> client) ---------- */
@@ -253,7 +307,7 @@ export class NocStore {
    * silently no-op. A not-yet-open alert (New/Held) still goes through
    * openIncident, which only steals focus if nothing else currently has it. */
   async openIncident(alertId: string): Promise<void> {
-    const already = this.state.server?.incidents.find((i) => i.alertId === alertId)
+    const already = this.current()?.incidents.find((i) => i.alertId === alertId)
     if (already) {
       // Jumping to a lane that's already open is a local focus change, not
       // a site command — not blocked offline, unlike actually taking one.
@@ -283,7 +337,7 @@ export class NocStore {
    */
   async openCameraView(cameraId: string): Promise<void> {
     if (this.state.ui.viewingCameraId === null) {
-      this.patchUi({ cameraViewReturnTo: this.state.server?.focusIncidentId ?? null })
+      this.patchUi({ cameraViewReturnTo: this.current()?.focusIncidentId ?? null })
       await this.client.setFocus(null)
     }
     this.patchUi({ viewingCameraId: cameraId })
@@ -293,7 +347,7 @@ export class NocStore {
   async closeCameraView(): Promise<void> {
     const returnTo = this.state.ui.cameraViewReturnTo
     this.patchUi({ viewingCameraId: null, cameraViewReturnTo: null })
-    if (returnTo && this.state.server?.incidents.some((i) => i.id === returnTo)) {
+    if (returnTo && this.current()?.incidents.some((i) => i.id === returnTo)) {
       await this.client.setFocus(returnTo)
     }
   }
@@ -327,7 +381,7 @@ export class NocStore {
 
   /** Focus a lane. If the mic is open elsewhere, ask first. */
   async requestFocus(incidentId: string): Promise<void> {
-    const s = this.state.server
+    const s = this.current()
     if (!s || s.focusIncidentId === incidentId) return
     const owner = s.micOwnerIncidentId
     if (owner && owner !== incidentId) {
@@ -339,7 +393,7 @@ export class NocStore {
 
   /** M key or the Two-way talk button: bind if free, release if bound here, ask if bound elsewhere. */
   async toggleMic(incidentId: string): Promise<void> {
-    const s = this.state.server
+    const s = this.current()
     if (!s) return
     if (this.refuseIfOffline()) return
     if (s.micOwnerIncidentId === incidentId) {
@@ -390,7 +444,7 @@ export class NocStore {
   acknowledgeEscalation = (incidentId: string) => this.client.acknowledgeEscalation(incidentId)
 
   async addNote(text: string): Promise<boolean> {
-    const id = this.state.server?.focusIncidentId
+    const id = this.current()?.focusIncidentId
     if (!id) {
       this.toast('Focus a lane before adding a note', 'warn')
       return false

@@ -1,13 +1,14 @@
-import { useState, type CSSProperties } from 'react'
-import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot, TranscriptSpeaker } from '../api/types'
+import { memo, useMemo, useState, type CSSProperties } from 'react'
+import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot, TranscriptLine, TranscriptSpeaker } from '../api/types'
 import { derivePriority, ladderLabel, laneLetter, ledgerKindLabel } from '../domain/rules'
 import { attendedSec, fmtClock, incidentAgeSec, plural, secondsToNextStage, unattendedSec } from '../domain/timing'
 import { streamUrlFor } from '../domain/video'
 import { useHoldToArm } from '../hooks/useHoldToArm'
 import { useHoldToTalk } from '../hooks/useHoldToTalk'
 import { useNow } from '../hooks/useNow'
+import { useStableArray } from '../hooks/useStableArray'
 import { useConnection, useStore } from '../store/context'
-import { groupLedger } from '../store/selectors'
+import { groupLedger, type LedgerGroup } from '../store/selectors'
 import { CommsDock } from './CommsDock'
 import { VideoSlot } from './VideoSlot'
 
@@ -38,7 +39,6 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const store = useStore()
   const connection = useConnection()
   const now = useNow()
-  const [noteDraft, setNoteDraft] = useState('')
   const [watchTab, setWatchTab] = useState<'timeline' | 'transcript'>('timeline')
   const [confirmDispatchOpen, setConfirmDispatchOpen] = useState(false)
 
@@ -61,11 +61,14 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const nextIn = secondsToNextStage(inc.ladder, now)
   const ladderText = ladderLabel(inc.ladder, inc.operatorOwned)
 
-  const allEvidence = server.evidence.filter((e) => e.incidentId === inc.id)
+  // Point 5: filtered once per change to the underlying list, and kept
+  // reference-stable when an event for another lane didn't change this one,
+  // so the memoised log below skips clock ticks, keystrokes and other lanes.
+  const allEvidence = useStableArray(useMemo(() => server.evidence.filter((e) => e.incidentId === inc.id), [server.evidence, inc.id]))
   const thumbs = allEvidence.slice(-7).reverse()
-  const ledger = server.ledger.filter((e) => e.incidentId === inc.id)
-  const timelineGroups = groupLedger(ledger)
-  const transcript = server.transcript.filter((l) => l.incidentId === inc.id)
+  const ledger = useStableArray(useMemo(() => server.ledger.filter((e) => e.incidentId === inc.id), [server.ledger, inc.id]))
+  const timelineGroups = useMemo(() => groupLedger(ledger), [ledger])
+  const transcript = useStableArray(useMemo(() => server.transcript.filter((l) => l.incidentId === inc.id), [server.transcript, inc.id]))
 
   const sirenHold = useHoldToArm(() => void store.setSiren(inc.id, true), 600, 'siren')
   const strobeHold = useHoldToArm(() => void store.setStrobe(inc.id, true), 600, 'strobe')
@@ -75,14 +78,6 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
   const talkHold = useHoldToTalk(() => {
     if (server.micOwnerIncidentId !== inc.id) void store.toggleMic(inc.id)
   })
-
-  const submitNote = () => {
-    const v = noteDraft.trim()
-    if (!v) return
-    void store.addNote(v).then((ok) => {
-      if (ok) setNoteDraft('')
-    })
-  }
 
   return (
     <>
@@ -150,38 +145,7 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
                 </button>
               ))}
             </div>
-            {watchTab === 'timeline' ? (
-              <div className="ledger">
-                {timelineGroups.length ? (
-                  timelineGroups.map((g) =>
-                    g.kind === 'stills' ? (
-                      <StillsRow key={g.events[0]!.id} events={g.events} />
-                    ) : (
-                      <div key={g.event.id} className={`led ${g.event.kind}`}>
-                        <span className="ts mono">{g.event.at.slice(11, 19)}</span>
-                        <span><i>{ledgerKindLabel(g.event.kind)}</i>{g.event.text}</span>
-                      </div>
-                    ),
-                  )
-                ) : (
-                  <p className="empty">No events yet.</p>
-                )}
-              </div>
-            ) : (
-              <div className="ledger" role="log" aria-live="polite">
-                {transcript.length ? (
-                  transcript.map((l) => (
-                    <div className={`tline ${l.speaker}`} key={l.id}>
-                      <span className="ts mono">{l.at.slice(11, 19)}</span>
-                      <span className="who">{SPEAKER_LABEL[l.speaker]}</span>
-                      <span className="tx">{l.text}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="empty">No transcript yet.</p>
-                )}
-              </div>
-            )}
+            {watchTab === 'timeline' ? <TimelineLog groups={timelineGroups} /> : <TranscriptLog lines={transcript} />}
           </div>
         </div>
 
@@ -290,21 +254,7 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
             </button>
           </div>
 
-          <div className="ws-note">
-            <label className={`note-label ${accent}`} htmlFor="note-in">
-              Note → Lane {letter} · {site?.name ?? inc.siteId}
-            </label>
-            <input
-              id="note-in"
-              className={`note-input ${accent}`}
-              placeholder="Enter — save"
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitNote()
-              }}
-            />
-          </div>
+          <NoteField accent={accent} label={`Note → Lane ${letter} · ${site?.name ?? inc.siteId}`} />
         </div>
       </div>
     </article>
@@ -331,6 +281,81 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
     </>
   )
 }
+
+/* Point 5: the log, its rows and the note field are their own memoised
+ * components. The workspace above re-renders every second (its clocks) and
+ * on every server event; these re-render only when their own data changes,
+ * and a new log line renders just that line. */
+
+const TimelineLog = memo(function TimelineLog({ groups }: { groups: LedgerGroup[] }) {
+  return (
+    <div className="ledger">
+      {groups.length ? (
+        groups.map((g) =>
+          g.kind === 'stills' ? <StillsRow key={g.events[0]!.id} events={g.events} /> : <LedgerRow key={g.event.id} event={g.event} />,
+        )
+      ) : (
+        <p className="empty">No events yet.</p>
+      )}
+    </div>
+  )
+})
+
+const LedgerRow = memo(function LedgerRow({ event }: { event: LedgerEvent }) {
+  return (
+    <div className={`led ${event.kind}`}>
+      <span className="ts mono">{event.at.slice(11, 19)}</span>
+      <span><i>{ledgerKindLabel(event.kind)}</i>{event.text}</span>
+    </div>
+  )
+})
+
+const TranscriptLog = memo(function TranscriptLog({ lines }: { lines: TranscriptLine[] }) {
+  return (
+    <div className="ledger" role="log" aria-live="polite">
+      {lines.length ? lines.map((l) => <TranscriptRow key={l.id} line={l} />) : <p className="empty">No transcript yet.</p>}
+    </div>
+  )
+})
+
+const TranscriptRow = memo(function TranscriptRow({ line }: { line: TranscriptLine }) {
+  return (
+    <div className={`tline ${line.speaker}`}>
+      <span className="ts mono">{line.at.slice(11, 19)}</span>
+      <span className="who">{SPEAKER_LABEL[line.speaker]}</span>
+      <span className="tx">{line.text}</span>
+    </div>
+  )
+})
+
+/** Its own draft state, so typing re-renders this input, not the workspace.
+ * `store.addNote` writes to the focused lane, which is this one. */
+const NoteField = memo(function NoteField({ accent, label }: { accent: string; label: string }) {
+  const store = useStore()
+  const [draft, setDraft] = useState('')
+  const submit = () => {
+    const v = draft.trim()
+    if (!v) return
+    void store.addNote(v).then((ok) => {
+      if (ok) setDraft('')
+    })
+  }
+  return (
+    <div className="ws-note">
+      <label className={`note-label ${accent}`} htmlFor="note-in">{label}</label>
+      <input
+        id="note-in"
+        className={`note-input ${accent}`}
+        placeholder="Enter — save"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit()
+        }}
+      />
+    </div>
+  )
+})
 
 function StillsRow({ events }: { events: LedgerEvent[] }) {
   const [open, setOpen] = useState(false)
