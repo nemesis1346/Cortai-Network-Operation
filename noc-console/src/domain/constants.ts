@@ -44,3 +44,16 @@ export const SESSION_MAX_HOURS = 24
 /** Idle lock timeout. Yassine's number (15) supersedes the v1.2 lock-screen
  * help article's 10 — that article predates the OTP rework; see DECISIONS.md. */
 export const IDLE_LOCK_MIN = 15
+
+/* ---------- Video (Yassine's point 4, go2rtc) ----------
+ * Player health thresholds, API-CONTRACT.md §7 / v2 STATES.md §5. */
+/** Below this many decoded frames per second, over the last second: degraded. */
+export const VIDEO_DEGRADED_FPS = 3
+/** A gap this long since the last decoded frame: degraded. */
+export const VIDEO_DEGRADED_GAP_MS = 900
+/** No frame for this long: lost, tear down and reconnect. */
+export const VIDEO_LOST_MS = 5000
+/** No first frame this long after connecting started: lost. */
+export const VIDEO_FIRST_FRAME_TIMEOUT_MS = 10_000
+/** Wait after 'lost' before the next connection attempt. */
+export const VIDEO_RETRY_MS = 3000

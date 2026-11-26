@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Camera, Snapshot } from '../api/types'
 import type { QueuePriority } from '../domain/rules'
 import { canOpenIncident } from '../domain/rules'
+import { streamUrlFor } from '../domain/video'
 import { useConnection, useStore } from '../store/context'
 import { VideoSlot } from './VideoSlot'
 
@@ -63,6 +64,7 @@ export function CameraWorkspace({ camera, server }: { camera: Camera; server: Sn
           <VideoSlot
             cameraId={camera.id}
             tier="full"
+            streamUrl={streamUrlFor(camera, 'full')}
             signal={offline ? 'lost' : camera.signal}
             latencyMs={camera.latencyMs}
           />

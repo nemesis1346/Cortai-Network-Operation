@@ -43,6 +43,14 @@ export interface Camera {
   signal?: VideoSignal
   /** Glass-to-glass latency in ms for the active stream, when known. */
   latencyMs?: number
+  /** go2rtc WebRTC signalling endpoint for the main stream: the client POSTs
+   * an SDP offer and gets the answer back, e.g.
+   * `http://nvr.local:1984/api/webrtc?src=cam07` (API-CONTRACT.md §7).
+   * Absent: no stream to play, VideoSlot shows its placeholder. */
+  streamUrl?: string
+  /** Same, for the low-bandwidth sub stream (lane cards). Falls back to
+   * `streamUrl` when absent. */
+  subStreamUrl?: string
 }
 
 /**

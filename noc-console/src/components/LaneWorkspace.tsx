@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import type { Alert, Incident, LedgerEvent, RiskFactorWeight, Snapshot, TranscriptSpeaker } from '../api/types'
 import { derivePriority, ladderLabel, laneLetter, ledgerKindLabel } from '../domain/rules'
 import { attendedSec, fmtClock, incidentAgeSec, plural, secondsToNextStage, unattendedSec } from '../domain/timing'
+import { streamUrlFor } from '../domain/video'
 import { useHoldToArm } from '../hooks/useHoldToArm'
 import { useHoldToTalk } from '../hooks/useHoldToTalk'
 import { useNow } from '../hooks/useNow'
@@ -107,6 +108,7 @@ export function LaneWorkspace({ inc, alert, server }: { inc: Incident; alert: Al
             <VideoSlot
               cameraId={inc.cameraId}
               tier="full"
+              streamUrl={streamUrlFor(camera, 'full')}
               signal={connection.status === 'offline' ? 'lost' : camera?.signal}
               latencyMs={camera?.latencyMs}
               detections={alert.detections}

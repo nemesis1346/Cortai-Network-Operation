@@ -1028,3 +1028,35 @@ Not done, deliberately: an application-level heartbeat. A stub that's killed clo
 but a half-open connection (a network cable pulled) would only be noticed when TCP gives up. `STATES.md`
 §10 wants a heartbeat timeout for that; it needs a server-side ping message the contract doesn't have
 yet, so it's flagged here, not invented.
+
+## Real video in VideoSlot, 25 Nov (Yassine's point 4)
+
+`VideoSlot` plays a go2rtc WebRTC stream when the camera has a stream URL, keeps the placeholder when
+it doesn't, and maps the player onto `connecting`/`degraded`/`lost`. Details in `API-CONTRACT.md` §7a.
+
+- **`Camera.streamUrl?`/`subStreamUrl?`** (contract). The mock sets them only when given a go2rtc
+  (`VITE_GO2RTC_URL`, or `NOC_GO2RTC_URL` for the stub), and never for the offline camera.
+- **`useGo2rtcStream`**: SDP offer → go2rtc's `/api/webrtc` → answer, then reads `framesDecoded` every
+  500 ms. **`domain/video.ts#classifyPlayer`** turns that into a state, with `STATES.md` §5's thresholds
+  as constants. Pure, 8 tests on the exact boundaries.
+- **The shown signal is the worse of the server's and the player's**, so a fault the server knows about
+  isn't hidden by a stream that happens to decode, and vice versa.
+- **`video/go2rtc.yaml`** plays one file, looped (a custom ffmpeg input template: go2rtc's own file
+  input plays once and stops), as every camera, plus a `slow` 2 fps feed for testing `degraded`.
+
+Tested live, Chrome against go2rtc 1.9.15 + ffmpeg 8.1.3 with a generated test-pattern clip:
+
+| Check | Result |
+|---|---|
+| Focused lane (cam 07) | `connecting` → `live` in ~6 s cold, 1280×720, playing, detection box over the picture |
+| Lane card (cam 05) | sub stream, `live` |
+| go2rtc stopped | `lost` after ~5 s ("Paused · offline"), retry 3 s later |
+| go2rtc back, cam 07 at 2 fps | reconnected into `degraded`, stable (no flapping over 3 s) |
+| Normal feed back | `live` again, no user action |
+| Offline cam 19 | no URL, no `<video>`, placeholder |
+
+Not done, flagged: the ~6 s to first picture on a cold stream. I haven't broken it down; the likely
+parts are go2rtc starting ffmpeg, waiting for the next keyframe (every 2 s in the test clip) and the
+non-trickle ICE wait. Worth measuring against real cameras before tuning anything. The camera wall's
+tiles are still placeholders: 10 simultaneous streams is a bandwidth decision (sub streams? snapshots?)
+that isn't mine to make.

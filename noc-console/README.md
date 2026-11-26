@@ -25,6 +25,9 @@ Sign in with any email and code `123456`. Stop the stub (Ctrl+C) and the connect
 start it again and the page resyncs without a reload. A restarted stub is a fresh shift, since all its
 state is in memory.
 
+Real video: `VITE_GO2RTC_URL=http://localhost:1984 npm run dev` plays every camera from a local go2rtc
+(`video/README.md` has the 3-step setup). Without it, cameras show the placeholder as before.
+
 ## Structure
 ```
 src/api/types.ts          Proposed backend contract (entities, ServerEvent, commands)
@@ -33,6 +36,8 @@ src/api/mock/             MockNocClient (simulates ladder, evidence, paging) + s
 src/api/http/             HttpNocClient: NocClient over REST + WebSocket (docs/API-CONTRACT.md §2)
 server/stub.ts            Stub server: MockNocClient behind the real endpoints, for VITE_NOC_API=http
 server/transport.test.ts  End to end over the wire: HttpNocClient + store against the stub
+src/hooks/useGo2rtcStream WebRTC to go2rtc for VideoSlot; health from decoded frames (domain/video.ts)
+video/                    go2rtc.yaml + README: a local go2rtc playing a file as every camera
 src/domain/               Pure rules: queue priority, memo check, callout, timing, ledger grouping,
                            appearance (theme/typeface persistence), help (types, context-sensitive
                            article picker, search) + helpRender.tsx (the Markdown-subset renderer)

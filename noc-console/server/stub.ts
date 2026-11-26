@@ -95,7 +95,8 @@ export interface Stub {
 }
 
 export async function startStub({ port = 8787, tick = true, log = false }: StubOptions = {}): Promise<Stub> {
-  const mock = new MockNocClient()
+  // NOC_GO2RTC_URL: same as the browser mock's VITE_GO2RTC_URL (video/README.md).
+  const mock = new MockNocClient({ go2rtcUrl: process.env.NOC_GO2RTC_URL })
   /** Signed-out tokens, so a copied cookie can't outlive its sign-out. In
    * memory only: a restart forgets them, acceptable for a local stub. */
   const revoked = new Set<string>()
